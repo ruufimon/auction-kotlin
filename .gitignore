@@ -1,0 +1,7 @@
+.gradle/
+build/
+.idea/
+*.iml
+
+# Frontend is maintained in its own repository.
+/web/
