@@ -1,0 +1,80 @@
+openapi: 3.1.0
+info:
+  title: Gavel Auction API
+  version: 1.0.0
+  description: |
+    HTTP API for the Gavel auction platform. Version 1 currently exposes a
+    greeting endpoint and operational health probes; business endpoints for
+    user onboarding, catalog, bidding, and settlement are specified in
+    `requirement.md` and will be added here as they are implemented.
+servers:
+  - url: https://gavel-ii74u.ondigitalocean.app
+    description: Production (DigitalOcean App Platform)
+  - url: http://localhost:8080
+    description: Local development
+# All current endpoints are public and unauthenticated.
+security: []
+tags:
+  - name: General
+    description: Service information.
+  - name: Health
+    description: Liveness and readiness probes used by the hosting platform.
+paths:
+  /:
+    get:
+      tags: [General]
+      operationId: getGreeting
+      summary: Greeting
+      description: Returns a static greeting. Useful as a basic connectivity check.
+      responses:
+        "200":
+          description: The service is reachable.
+          content:
+            text/plain:
+              schema:
+                type: string
+                const: Hello, World!
+              example: Hello, World!
+  /health/live:
+    get:
+      tags: [Health]
+      operationId: getLiveness
+      summary: Liveness probe
+      description: |
+        Reports that the process is running and able to serve HTTP. It does not
+        check dependencies; the platform restarts the instance when this fails.
+      responses:
+        "200":
+          description: The process is alive.
+          content:
+            text/plain:
+              schema:
+                type: string
+                const: OK
+              example: OK
+  /health/ready:
+    get:
+      tags: [Health]
+      operationId: getReadiness
+      summary: Readiness probe
+      description: |
+        Reports whether the instance can accept traffic. Fails while required
+        infrastructure, such as the database, is unavailable; the platform
+        stops routing traffic to the instance until it recovers.
+      responses:
+        "200":
+          description: The instance is ready to serve traffic.
+          content:
+            text/plain:
+              schema:
+                type: string
+                const: READY
+              example: READY
+        "503":
+          description: Required infrastructure is unavailable.
+          content:
+            text/plain:
+              schema:
+                type: string
+                const: NOT READY
+              example: NOT READY
