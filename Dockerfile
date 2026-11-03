@@ -28,4 +28,7 @@ ENV PORT=8080 \
     JAVA_OPTS="-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError"
 EXPOSE 8080
 
+HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --retries=3 \
+    CMD curl -fsS "http://localhost:${PORT}/health/ready" || exit 1
+
 ENTRYPOINT ["/app/bin/auction"]
