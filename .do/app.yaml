@@ -3,14 +3,13 @@
 # Create:  doctl apps create --spec .do/app.yaml
 # Update:  doctl apps update <app-id> --spec .do/app.yaml
 #
-# Replace GITHUB_OWNER/GITHUB_REPO before creating the app.
 name: gavel
 region: sgp
 
 services:
   - name: api
     github:
-      repo: GITHUB_OWNER/GITHUB_REPO
+      repo: ruufimon/auction-kotlin
       branch: main
       deploy_on_push: true
     dockerfile_path: Dockerfile
