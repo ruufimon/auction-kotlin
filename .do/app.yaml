@@ -1,0 +1,54 @@
+# DigitalOcean App Platform spec for the Gavel API.
+#
+# Create:  doctl apps create --spec .do/app.yaml
+# Update:  doctl apps update <app-id> --spec .do/app.yaml
+#
+name: gavel
+region: sgp
+
+services:
+  - name: api
+    github:
+      repo: ruufimon/auction-kotlin
+      branch: main
+      deploy_on_push: true
+    dockerfile_path: Dockerfile
+    http_port: 8080
+    instance_count: 1
+    # The JVM is tight at 512 MB; 1 GB leaves headroom.
+    instance_size_slug: apps-s-1vcpu-1gb
+    routes:
+      - path: /
+    health_check:
+      http_path: /health/ready
+      initial_delay_seconds: 10
+      period_seconds: 10
+      timeout_seconds: 3
+      failure_threshold: 3
+    liveness_health_check:
+      http_path: /health/live
+      initial_delay_seconds: 30
+      period_seconds: 15
+      timeout_seconds: 3
+      failure_threshold: 4
+    envs:
+      - key: JAVA_OPTS
+        scope: RUN_TIME
+        value: "-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError"
+      # Uncomment together with the database block below.
+      # - key: DATABASE_URL
+      #   scope: RUN_TIME
+      #   value: ${db.DATABASE_URL}
+      # Secrets: set the value in the DigitalOcean console or via
+      # `doctl apps update`; App Platform encrypts it. Never commit real values.
+      # - key: JWT_SECRET
+      #   scope: RUN_TIME
+      #   type: SECRET
+
+# Managed PostgreSQL — enable when the API gains persistence.
+# databases:
+#   - name: db
+#     engine: PG
+#     version: "16"
+#     production: true
+#     cluster_name: gavel-db
