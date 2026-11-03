@@ -51,6 +51,33 @@ docker run --rm -p 8080:8080 gavel-api
 
 The image runs as a non-root user and honours `PORT` and `JAVA_OPTS`.
 
+### Health endpoints
+
+- `GET /health/live`: liveness, always `200 OK` while the process runs.
+- `GET /health/ready`: readiness, `503` when required infrastructure is
+  unavailable.
+
+## Deploy to DigitalOcean
+
+The API deploys to DigitalOcean App Platform from the spec in
+[`.do/app.yaml`](.do/app.yaml). App Platform builds the `Dockerfile`, terminates
+TLS, and redeploys on every push to `main`.
+
+1. Replace `GITHUB_OWNER/GITHUB_REPO` in `.do/app.yaml` and push the repo to
+   GitHub.
+2. Authenticate and create the app:
+
+   ```bash
+   doctl auth init
+   doctl apps create --spec .do/app.yaml
+   ```
+
+3. After the spec changes, apply them with
+   `doctl apps update <app-id> --spec .do/app.yaml`.
+
+Set secrets in the App Platform console or as `type: SECRET` variables. Never
+commit secret values.
+
 ## Run the web app
 
 Requirements: Node.js 22.13 or newer and npm.
