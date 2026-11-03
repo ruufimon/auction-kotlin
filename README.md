@@ -42,6 +42,15 @@ Hello, World!
 
 Set the `PORT` environment variable to use another port.
 
+### Run the API with Docker
+
+```bash
+docker build -t gavel-api .
+docker run --rm -p 8080:8080 gavel-api
+```
+
+The image runs as a non-root user and honours `PORT` and `JAVA_OPTS`.
+
 ## Run the web app
 
 Requirements: Node.js 22.13 or newer and npm.
