@@ -1,4 +1,4 @@
-# API Implementation Plan - 7 GitHub Milestones
+# API & UI Implementation Plan - 7 GitHub Milestones
 
 **Status:** Planning Complete ✅  
 **Created:** 2026-11-06  
@@ -13,6 +13,7 @@ All milestones are now created and tracked on GitHub. This document provides a q
 - **Week:** 1
 - **Focus:** Infrastructure foundation
 - **Deliverables:** PostgreSQL schema, Flyway migrations, JWT config, test database
+- **UI:** Web app shell, typed API client, shared UI primitives (#27–#29)
 - **Status:** Open
 - **URL:** https://github.com/ruufimon/auction-kotlin/milestone/1
 
@@ -20,14 +21,16 @@ All milestones are now created and tracked on GitHub. This document provides a q
 - **Week:** 1-2
 - **Focus:** Authentication feature
 - **Deliverables:** 8 auth endpoints (register, verify, signin, refresh, signout, profile, seller-enable)
+- **UI:** Registration & verification, sign-in/session, profile & seller-enable (#30–#32)
 - **Dependencies:** M1
 - **Status:** Open
 - **URL:** https://github.com/ruufimon/auction-kotlin/milestone/2
 
-### M3: Catalog API
+### M3: Catalog API & UI
 - **Week:** 2-3
 - **Focus:** Listing and auction management
 - **Deliverables:** 8 catalog endpoints (create, update, publish, cancel, search, scheduler)
+- **UI:** Marketplace discovery, listing detail, seller listing management (#33–#35)
 - **Dependencies:** M2
 - **Status:** Open
 - **URL:** https://github.com/ruufimon/auction-kotlin/milestone/3
@@ -36,6 +39,7 @@ All milestones are now created and tracked on GitHub. This document provides a q
 - **Week:** 3
 - **Focus:** Bidding with concurrency control
 - **Deliverables:** 4 bid endpoints with validation, locking, idempotency
+- **UI:** Bid form, bid history & my bids, live price & result feedback (#36–#38)
 - **Dependencies:** M3
 - **Status:** Open
 - **URL:** https://github.com/ruufimon/auction-kotlin/milestone/4
@@ -44,6 +48,7 @@ All milestones are now created and tracked on GitHub. This document provides a q
 - **Week:** 3-4
 - **Focus:** Payment and order fulfillment
 - **Deliverables:** 6 settlement endpoints (orders, checkout, webhook, shipment, delivery)
+- **UI:** Buyer orders & checkout, seller fulfillment & shipment tracking (#39–#40)
 - **Dependencies:** M4
 - **Status:** Open
 - **URL:** https://github.com/ruufimon/auction-kotlin/milestone/5
@@ -52,6 +57,7 @@ All milestones are now created and tracked on GitHub. This document provides a q
 - **Week:** 4-5
 - **Focus:** Infrastructure for asynchronous communication
 - **Deliverables:** Event outbox, publisher, handlers, scheduler jobs
+- **UI:** Web state refresh & recovery (#41)
 - **Dependencies:** M5
 - **Status:** Open
 - **URL:** https://github.com/ruufimon/auction-kotlin/milestone/6
@@ -60,6 +66,7 @@ All milestones are now created and tracked on GitHub. This document provides a q
 - **Week:** 5+
 - **Focus:** Testing, security, deployment
 - **Deliverables:** Integration tests, load testing, DigitalOcean deployment
+- **UI:** Browser E2E tests, accessibility & responsive checks, web frontend deployment (#42–#44)
 - **Dependencies:** M6
 - **Status:** Open
 - **URL:** https://github.com/ruufimon/auction-kotlin/milestone/7
@@ -107,6 +114,21 @@ POST   /api/v1/orders/{orderId}/shipment
 POST   /api/v1/orders/{orderId}/delivery
 POST   /webhook/payment
 ```
+
+## Web UI Issues
+
+UI work lives in the same milestones as the APIs it consumes, labeled `ui` and numbered `Mx-UI-n`.
+Frontend: Next.js (Vinext) in `web/` — see [WEB_DOCKER_GUIDE.md](./WEB_DOCKER_GUIDE.md).
+
+| Milestone | Issues |
+|---|---|
+| M1 | #27 App shell & routing · #28 API client & token handling · #29 Shared UI primitives |
+| M2 | #30 Registration & verification · #31 Sign-in & session · #32 Profile & seller-enable |
+| M3 | #33 Marketplace discovery · #34 Listing detail · #35 Seller listing management |
+| M4 | #36 Bid form · #37 Bid history & my bids · #38 Live price & result feedback |
+| M5 | #39 Buyer orders & checkout · #40 Seller fulfillment & tracking |
+| M6 | #41 Web state refresh & recovery |
+| M7 | #42 Browser E2E tests · #43 Accessibility & responsive checks · #44 Web deployment |
 
 ## Key Architecture Decisions
 
