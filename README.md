@@ -231,12 +231,20 @@ npm run build
 
 This project demonstrates AFA principles in action. Key resources:
 
-- **[AGENT.md](AGENT.md)** — Complete AFA specification and rules
+### Architecture & Design
+- **[AGENT.md](AGENT.md)** — Complete AFA specification and 5 core rules
 - **[RESTRUCTURING.md](RESTRUCTURING.md)** — Backend restructuring details
 - **[web/RESTRUCTURING.md](web/RESTRUCTURING.md)** — Frontend restructuring details
-- **[WEB_DOCKER_GUIDE.md](WEB_DOCKER_GUIDE.md)** — Web frontend Docker documentation
-- **[docker-compose.yml](docker-compose.yml)** — Multi-service orchestration
-- **[scripts/docker-web.sh](scripts/docker-web.sh)** — Automation script for Docker operations
+- **[QUICK_REFERENCE.md](QUICK_REFERENCE.md)** — Quick start guide and common commands
+
+### Docker & Deployment
+- **[WEB_DOCKER_GUIDE.md](WEB_DOCKER_GUIDE.md)** — Web frontend Docker comprehensive guide
+- **[docker-compose.yml](docker-compose.yml)** — Multi-service orchestration (production)
+- **[docker-compose.dev.yml](docker-compose.dev.yml)** — Development overrides with hot reload
+- **[scripts/docker-web.sh](scripts/docker-web.sh)** — Automation script for all Docker operations
+
+### Additional Documentation
+- **[requirement.md](requirement.md)** — Product and technical requirements
 
 ### Why AFA Matters
 
