@@ -3,5 +3,11 @@ build/
 .idea/
 *.iml
 
-# Frontend is maintained in its own repository.
-/web/
+# Frontend build artifacts and dependencies
+web/.next/
+web/.vinext/
+web/.wrangler/
+web/dist/
+web/node_modules/
+web/*.log
+web/npm-debug.log*

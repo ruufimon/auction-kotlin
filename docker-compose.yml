@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  # Frontend (Next.js with Vinext)
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+      args:
+        NODE_VERSION: "22.13.0"
+        BUILD_ENV: "production"
+    container_name: gavel-web
+    ports:
+      - "8787:8787"
+    environment:
+      NODE_ENV: production
+      # Add environment variables as needed:
+      # NEXT_PUBLIC_API_URL: http://localhost:8080
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8787', (res) => { if (res.statusCode !== 200 && res.statusCode !== 404) throw new Error(res.statusCode); })"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - gavel-network
+
+  # Backend API (Kotlin/Ktor) - for reference
+  api:
+    image: gavel-api:latest
+    container_name: gavel-api
+    ports:
+      - "8080:8080"
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xmx512m -Xms256m"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - gavel-network
+    profiles:
+      - full-stack  # Only run if explicitly enabled: docker-compose --profile full-stack up
+
+networks:
+  gavel-network:
+    driver: bridge
+
+# Usage:
+# 
+# Build only the web frontend:
+#   docker-compose build web
+#
+# Run only the web frontend:
+#   docker-compose up web
+#
+# Run both web and api (requires api image to be built first):
+#   docker-compose build
+#   docker-compose --profile full-stack up
+#
+# Development mode (with live reload):
+#   docker-compose -f docker-compose.yml -f docker-compose.dev.yml up web
+#
+# View logs:
+#   docker-compose logs -f web
+#
+# Stop services:
+#   docker-compose down
+#
+# Clean up (remove images):
+#   docker-compose down -v --rmi all

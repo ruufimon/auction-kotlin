@@ -1,0 +1,45 @@
+version: '3.8'
+
+# Development compose override - enables hot reload and debugging
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  web:
+    # Override the default command to enable dev mode
+    command: npm run dev
+    
+    # Mount source code for hot reload
+    volumes:
+      - ./web:/app:cached
+      - /app/node_modules  # Preserve installed node_modules
+      - /app/.next  # Preserve Next.js cache
+    
+    # Expose additional dev port
+    ports:
+      - "3000:3000"  # Additional Vite dev server port
+    
+    environment:
+      NODE_ENV: development
+      # Enable debugging if needed
+      # DEBUG: "vinext:*"
+    
+    # Keep stdin open and allocate tty for interactive shells
+    stdin_open: true
+    tty: true
+
+# Usage:
+#   docker-compose -f docker-compose.yml -f docker-compose.dev.yml up web
+#
+# This will:
+# 1. Mount the ./web directory into the container for live code reload
+# 2. Run npm run dev instead of npm start
+# 3. Expose both port 3000 (Vite dev) and 8787 (runtime)
+# 4. Keep the container running interactively
+#
+# To rebuild dependencies after package.json changes:
+#   docker-compose -f docker-compose.yml -f docker-compose.dev.yml down
+#   docker-compose -f docker-compose.yml -f docker-compose.dev.yml build --no-cache web
+#   docker-compose -f docker-compose.yml -f docker-compose.dev.yml up web
+#
+# View logs with colors:
+#   docker-compose -f docker-compose.yml -f docker-compose.dev.yml logs -f web
