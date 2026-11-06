@@ -5,7 +5,13 @@
 .idea
 *.iml
 build
-web
 Dockerfile
 .dockerignore
 *.md
+web/node_modules
+web/.next
+web/.vinext
+web/.wrangler
+web/dist
+web/*.log
+

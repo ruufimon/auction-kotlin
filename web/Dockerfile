@@ -48,28 +48,22 @@ RUN addgroup -S app && adduser -S app -G app
 WORKDIR /app
 
 # Copy only necessary files from builder stage
-COPY --from=builder --chown=app:app /app/dist ./dist
+COPY --from=builder --chown=app:app /app/.next ./.next
 COPY --from=builder --chown=app:app /app/node_modules ./node_modules
 COPY --from=builder --chown=app:app /app/package*.json ./
-
-# Install only production dependencies for runtime
-# Remove dev dependencies to reduce image size
-RUN npm ci --production --prefer-offline --no-audit && \
-    npm cache clean --force && \
-    rm -rf .npm
 
 # Switch to non-root user
 USER app
 
-# Expose port (Vinext/Wrangler typically runs on 8787)
-EXPOSE 8787
+# Expose port (Next.js development server runs on 3000)
+EXPOSE 3000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD node -e "require('http').get('http://localhost:8787', (res) => { if (res.statusCode !== 200 && res.statusCode !== 404) throw new Error(res.statusCode); })" || exit 1
+    CMD node -e "require('http').get('http://localhost:3000', (res) => { if (res.statusCode !== 200 && res.statusCode !== 404) throw new Error(res.statusCode); })" || exit 1
 
 # Start application
-# For Wrangler/Cloudflare Workers development
+# For Next.js production server
 CMD ["npm", "start"]
 
 # ============================================================================

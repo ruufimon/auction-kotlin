@@ -11,13 +11,13 @@ services:
         BUILD_ENV: "production"
     container_name: gavel-web
     ports:
-      - "8787:8787"
+      - "3000:3000"
     environment:
       NODE_ENV: production
       # Add environment variables as needed:
       # NEXT_PUBLIC_API_URL: http://localhost:8080
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8787', (res) => { if (res.statusCode !== 200 && res.statusCode !== 404) throw new Error(res.statusCode); })"]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000', (res) => { if (res.statusCode !== 200 && res.statusCode !== 404) throw new Error(res.statusCode); })"]
       interval: 30s
       timeout: 10s
       retries: 3
