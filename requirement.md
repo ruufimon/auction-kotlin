@@ -48,7 +48,7 @@ The system supports timed English auctions for single-quantity physical goods. O
 - All auctions use one deployment-configured ISO 4217 currency.
 - Monetary values are stored and exchanged as integer minor units. Floating-point values are prohibited for money.
 - Public identifiers are opaque and must not expose sequential database keys.
-- Authenticated operations require an active account. Bid placement and listing publication also require a verified email.
+- Authenticated operations require an active account. Bid placement and listing publication also require a verified email and successful credit-eligibility assessment.
 - State transitions must be validated on the server and recorded with actor, timestamp, entity identifier, and transition details.
 - Validation errors use stable machine-readable error codes with human-readable messages.
 - Retried commands that can create financial or auction state must accept or derive an idempotency key.
@@ -69,14 +69,37 @@ The system supports timed English auctions for single-quantity physical goods. O
 - **USR-008:** A user becomes eligible to sell only after supplying all configured seller-profile and origin-address fields.
 - **USR-009:** One account can act as both buyer and seller; no separate role registration is required.
 - **USR-010:** Account suspension immediately prevents authentication refresh, bidding, listing publication, and fulfillment updates. Existing records remain available for audit and operational resolution.
+- **USR-011:** After email verification, a user supplies their age, annual income, and net wealth for an internally calculated credit-eligibility assessment. Income and wealth are expressed in integer minor units.
+- **USR-012:** The server evaluates the supplied values using a versioned, deployment-configured scoring policy. An account becomes active only when it meets the configured minimum score. The assessment outcome, policy version, and timestamp are auditable; raw assessment inputs are encrypted at rest, excluded from logs, and retained only according to the applicable data-retention policy.
 
 #### Account states
 
-`PENDING_VERIFICATION -> ACTIVE -> SUSPENDED`
+`PENDING_VERIFICATION -> PENDING_CREDIT_ELIGIBILITY -> ACTIVE -> SUSPENDED`
 
-- Successful email verification moves an account from `PENDING_VERIFICATION` to `ACTIVE`.
-- Suspension may occur from `PENDING_VERIFICATION` or `ACTIVE`.
-- Reactivation is an operator action and returns the account to `ACTIVE` only when its email has been verified.
+- Successful email verification moves an account from `PENDING_VERIFICATION` to `PENDING_CREDIT_ELIGIBILITY`.
+- A successful credit-eligibility assessment moves an account from `PENDING_CREDIT_ELIGIBILITY` to `ACTIVE`; an unsuccessful assessment leaves the account pending and returns a stable reason.
+- Suspension may occur from `PENDING_VERIFICATION`, `PENDING_CREDIT_ELIGIBILITY`, or `ACTIVE`.
+- Reactivation is an operator action and returns the account to `ACTIVE` only when its email has been verified and it has passed credit eligibility.
+
+#### Onboarding flow
+
+```mermaid
+flowchart TD
+    Visitor[Visitor] --> Register[Register with email and password]
+    Register --> PendingVerification[PENDING_VERIFICATION]
+    PendingVerification -->|Verify email| PendingCredit[PENDING_CREDIT_ELIGIBILITY]
+    PendingCredit --> SubmitAssessment[Submit age, annual income, and net wealth]
+    SubmitAssessment --> Score{Meets configured\ncredit score?}
+    Score -->|Yes| Active[ACTIVE]
+    Score -->|No| PendingCredit
+    Active --> SellerProfile[Complete seller profile and origin address]
+    SellerProfile --> EligibleSeller[Eligible to publish listings]
+
+    PendingVerification -->|Suspend| Suspended[SUSPENDED]
+    PendingCredit -->|Suspend| Suspended
+    Active -->|Suspend| Suspended
+    Suspended -->|Operator reactivation:\nverified and credit-eligible| Active
+```
 
 ### 5.2 Product catalog
 
@@ -155,6 +178,7 @@ The application exposes versioned JSON REST endpoints under `/api/v1`. Concrete 
 
 - Register, verify email, sign in, refresh tokens, and sign out.
 - Get and update the authenticated user's profile.
+- Submit credit-eligibility inputs and retrieve the authenticated user's current assessment outcome and stable eligibility reason, without exposing the score or scoring-policy details.
 - Complete seller-profile information.
 - Access tokens are sent as bearer tokens. Refresh tokens must be handled through a transport and storage mechanism appropriate for the client threat model.
 
@@ -281,6 +305,8 @@ Expected event flows include:
 
 - Registration creates a pending account and does not allow bidding before verification.
 - A verification token works once and fails after use or expiry.
+- Email verification moves the account to credit-eligibility pending; a passing assessment activates it, and a failing assessment prevents bidding and listing publication.
+- Credit-eligibility inputs are evaluated with the configured policy version and never appear in application logs.
 - Token refresh rotates the refresh token; reuse of a rotated token invalidates the affected token family.
 - A suspended account cannot refresh, bid, publish, or update fulfillment.
 - Completing required seller fields enables listing publication without creating a second account.
