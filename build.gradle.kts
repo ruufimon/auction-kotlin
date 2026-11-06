@@ -1,23 +1,25 @@
 plugins {
-    kotlin("jvm") version "2.4.10"
+    alias(libs.plugins.kotlin.jvm)
     application
 }
 
-group = "com.example"
+group = "com.gavel"
 version = "1.0.0"
 
 repositories {
     mavenCentral()
 }
 
-val ktorVersion = "3.5.2"
-
 dependencies {
-    implementation("io.ktor:ktor-server-core:$ktorVersion")
-    implementation("io.ktor:ktor-server-netty:$ktorVersion")
+    implementation(libs.bundles.ktor.server)
+    implementation(libs.bundles.database)
+    implementation(libs.bundles.exposed)
+    implementation(libs.bundles.logging)
+    implementation(libs.kotlinx.serialization.json)
 
-    testImplementation("io.ktor:ktor-server-test-host:$ktorVersion")
-    testImplementation(kotlin("test"))
+    testImplementation(libs.bundles.testing)
+    testImplementation(libs.ktor.server.test.host)
+    testRuntimeOnly(libs.junit.engine)
 }
 
 kotlin {
@@ -25,7 +27,7 @@ kotlin {
 }
 
 application {
-    mainClass.set("com.example.ApplicationKt")
+    mainClass.set("com.gavel.ApplicationKt")
 }
 
 tasks.test {

@@ -247,6 +247,99 @@ Same event replayed twice = same result (no duplicate work).
 
 If you see a forbidden dependency error, that's a signal to use events instead.
 
+## Database Migrations (Flyway)
+
+Each feature owns its database migrations, packaged in its Gradle module. Migrations are applied in deterministic order by Flyway on application startup.
+
+### Migration Ownership
+
+| Feature | Migration Location | Prefix | Purpose |
+|---------|-------------------|--------|---------|
+| Shared | `app/src/main/resources/db/migration/shared/` | `V1_`, `V2_`, ... | Audit log, event outbox, session tables |
+| User-Onboarding | `features/user-onboarding/src/main/resources/db/migration/onboarding/` | `U1_`, `U2_`, ... | Users, refresh tokens, email verification |
+| Product-Catalog | `features/product-catalog/src/main/resources/db/migration/catalog/` | `C1_`, `C2_`, ... | Listings, images, auction state |
+| Bidding | `features/bidding/src/main/resources/db/migration/bidding/` | `B1_`, `B2_`, ... | Bids, bid history, concurrency control |
+| Settlement | `features/settlement/src/main/resources/db/migration/settlement/` | `S1_`, `S2_`, ... | Orders, payments, shipments |
+
+### Naming Convention
+
+**Format:** `V{version}_{description}.sql`
+
+**Version scheme:**
+- `V1_` through `V999_` — Sequential, zero-padded
+- Each feature increments independently within its prefix (U1, U2; C1, C2, etc.)
+- Shared uses global sequence (V1, V2, etc.) — apply first
+
+**Examples:**
+- `V1_create_audit_log.sql` — Shared setup
+- `V2_create_event_outbox.sql` — Shared outbox table
+- `U1_create_users_table.sql` — User-Onboarding migration 1
+- `U2_add_seller_enabled_column.sql` — User-Onboarding migration 2
+- `C1_create_listings_table.sql` — Catalog migration 1
+
+### Application Order (Determined by Flyway)
+
+Flyway scans all locations and applies migrations in alphabetical order:
+1. `db/migration/shared/` (V prefix) — Applied first
+2. Feature folders (U, C, B, S prefixes) — Applied in that order
+
+This ensures:
+- Shared infrastructure (outbox, audit) exists before features run
+- Deterministic ordering (no race conditions)
+- Easy rollback: one migration reversal file per version (future `V{version}__undo.sql`)
+
+### Adding a New Migration
+
+**Step 1: Create the file in your feature's migration folder**
+```bash
+# For user-onboarding feature (migration 3)
+touch features/user-onboarding/src/main/resources/db/migration/onboarding/U3_add_email_index.sql
+```
+
+**Step 2: Write the SQL**
+```sql
+-- features/user-onboarding/src/main/resources/db/migration/onboarding/U3_add_email_index.sql
+CREATE INDEX idx_users_email ON users(email) WHERE deleted_at IS NULL;
+```
+
+**Step 3: Run the app**
+```bash
+docker-compose -f docker-compose.dev.yml up
+# Flyway automatically detects and applies U3_add_email_index.sql on startup
+```
+
+**Step 4: Verify in database**
+```bash
+psql -h localhost -U auction -d auction_db
+auction_db=# SELECT * FROM flyway_schema_history;
+```
+
+### Within Migrations
+
+- Use `CASCADE` only for test/dev schemas; production must be explicit about deletion
+- Always include indexes on foreign keys and frequently queried fields
+- Document constraints: use `CONSTRAINT fk_...` names so they're visible in `\d`
+- Add comments for business rules:
+  ```sql
+  ALTER TABLE users ADD COLUMN email_verified BOOLEAN DEFAULT FALSE
+    CONSTRAINT ck_email_verified CHECK (email_verified IN (TRUE, FALSE))
+    COMMENT 'Email must be verified before bidding (USR-003)';
+  ```
+
+### Troubleshooting Migrations
+
+| Problem | Cause | Fix |
+|---------|-------|-----|
+| `Flyway migration failed: file not found` | Typo in location path | Check `FlywayConfig.kt` locations array matches folder names |
+| `Duplicate version: U1` | Two `U1_*.sql` files | Rename one to `U2_*.sql`, update version sequence |
+| `Migration error: column already exists` | Idempotent migration ran twice | Wrap in `IF NOT EXISTS` (Postgres doesn't support; use conditional logic or check first) |
+| `Migration blocked by dependent FK` | Can't alter table due to foreign key | Defer constraint check or migrate the dependent table first |
+
+### See Also
+- [DOMAIN_EVENTS.md](DOMAIN_EVENTS.md) — Outbox table schema and event persistence
+- [requirement.md](requirement.md) — Section 4.1: Flyway for versioned migrations
+- `FlywayConfig.kt` — Flyway initialization (runs on app startup before Ktor routing)
+
 ## Errors You May See
 
 | Message | Meaning | Fix |

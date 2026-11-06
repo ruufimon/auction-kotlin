@@ -1,9 +1,48 @@
 version: '3.8'
 
-# Development compose override - enables hot reload and debugging
-# Usage: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+# Development compose with PostgreSQL and API services
+# Usage: docker-compose -f docker-compose.dev.yml up
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: auction-postgres-dev
+    environment:
+      POSTGRES_USER: auction
+      POSTGRES_PASSWORD: dev-password
+      POSTGRES_DB: auction_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - auction_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U auction"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - auction-network
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: auction-api-dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: auction_db
+      DB_USER: auction
+      DB_PASSWORD: dev-password
+      SERVER_PORT: 8080
+    ports:
+      - "8080:8080"
+    networks:
+      - auction-network
+
   web:
     # Override the default command to enable dev mode
     command: npm run dev
@@ -26,20 +65,31 @@ services:
     # Keep stdin open and allocate tty for interactive shells
     stdin_open: true
     tty: true
+    networks:
+      - auction-network
+
+volumes:
+  auction_postgres_data:
+
+networks:
+  auction-network:
+    driver: bridge
 
 # Usage:
-#   docker-compose -f docker-compose.yml -f docker-compose.dev.yml up web
+#   docker-compose -f docker-compose.dev.yml up
 #
 # This will:
-# 1. Mount the ./web directory into the container for live code reload
-# 2. Run npm run dev instead of npm start
-# 3. Expose both port 3000 (Vite dev) and 8787 (runtime)
-# 4. Keep the container running interactively
+# 1. Start PostgreSQL with a healthcheck
+# 2. Build and start the API service (depends on DB)
+# 3. Start the web frontend
 #
-# To rebuild dependencies after package.json changes:
-#   docker-compose -f docker-compose.yml -f docker-compose.dev.yml down
-#   docker-compose -f docker-compose.yml -f docker-compose.dev.yml build --no-cache web
-#   docker-compose -f docker-compose.yml -f docker-compose.dev.yml up web
+# To only run the database:
+#   docker-compose -f docker-compose.dev.yml up postgres
 #
-# View logs with colors:
-#   docker-compose -f docker-compose.yml -f docker-compose.dev.yml logs -f web
+# To rebuild:
+#   docker-compose -f docker-compose.dev.yml down
+#   docker-compose -f docker-compose.dev.yml up --build
+#
+# Connect to DB directly:
+#   psql -h localhost -U auction -d auction_db
+
