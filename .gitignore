@@ -5,3 +5,5 @@ build/
 
 # Frontend is maintained in its own repository.
 /web/
+
+.env

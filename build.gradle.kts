@@ -1,33 +1,27 @@
+import org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension
+
 plugins {
-    kotlin("jvm") version "2.4.10"
-    application
+    alias(libs.plugins.kotlin.jvm) apply false
+    alias(libs.plugins.kotlin.serialization) apply false
 }
 
-group = "com.example"
-version = "1.0.0"
+subprojects {
+    group = "com.gavel"
+    version = "1.0.0"
 
-repositories {
-    mavenCentral()
-}
+    apply(plugin = "org.jetbrains.kotlin.jvm")
+    apply(plugin = "org.jetbrains.kotlin.plugin.serialization")
 
-val ktorVersion = "3.5.2"
+    repositories {
+        mavenCentral()
+    }
 
-dependencies {
-    implementation("io.ktor:ktor-server-core:$ktorVersion")
-    implementation("io.ktor:ktor-server-netty:$ktorVersion")
+    extensions.configure<KotlinJvmProjectExtension> {
+        jvmToolchain(21)
+    }
 
-    testImplementation("io.ktor:ktor-server-test-host:$ktorVersion")
-    testImplementation(kotlin("test"))
-}
-
-kotlin {
-    jvmToolchain(21)
-}
-
-application {
-    mainClass.set("com.example.ApplicationKt")
-}
-
-tasks.test {
-    useJUnitPlatform()
+    tasks.withType<Test>().configureEach {
+        useJUnitPlatform()
+        testLogging { events("failed"); exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL }
+    }
 }

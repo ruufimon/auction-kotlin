@@ -9,3 +9,6 @@ web
 Dockerfile
 .dockerignore
 *.md
+**/build
+**/.gradle
+.env

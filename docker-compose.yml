@@ -1,0 +1,22 @@
+# Local development: PostgreSQL for the API.
+#   docker compose up -d db
+#   ./gradlew :app:run   (with the variables from .env.example exported)
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: gavel
+      POSTGRES_USER: gavel
+      POSTGRES_PASSWORD: gavel
+    ports:
+      - "5432:5432"
+    volumes:
+      - gavel-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gavel -d gavel"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  gavel-db:

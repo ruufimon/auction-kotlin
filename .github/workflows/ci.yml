@@ -31,15 +31,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build -t gavel-api:ci .
-      - name: Smoke test health endpoints
+      - name: Start PostgreSQL
         run: |
-          docker run -d --name api -p 8080:8080 gavel-api:ci
-          for i in $(seq 1 60); do
+          docker network create gavel
+          docker run -d --name db --network gavel \
+            -e POSTGRES_DB=gavel -e POSTGRES_USER=gavel -e POSTGRES_PASSWORD=gavel postgres:16-alpine
+          for i in $(seq 1 30); do docker exec db pg_isready -U gavel -d gavel && break; sleep 1; done
+      - name: Smoke test health and catalog endpoints
+        run: |
+          docker run -d --name api --network gavel -p 8080:8080 \
+            -e DATABASE_URL=postgresql://gavel:gavel@db:5432/gavel \
+            -e JWT_SECRET=ci-only-jwt-secret-0123456789abcdefgh \
+            -e PAYMENT_WEBHOOK_SECRET=ci-only-webhook-secret \
+            -e SEED_DEMO_DATA=true \
+            gavel-api:ci
+          for i in $(seq 1 90); do
             curl -fsS http://localhost:8080/health/ready && break
             sleep 1
           done
           curl -fsS http://localhost:8080/health/live
           curl -fsS http://localhost:8080/health/ready
+          curl -fsS http://localhost:8080/api/v1/categories
+          curl -fsS "http://localhost:8080/api/v1/listings?limit=1" | grep -q '"items":\[{'
       - name: Container logs
         if: always()
         run: docker logs api || true

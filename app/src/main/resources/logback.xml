@@ -1,0 +1,18 @@
+<configuration>
+    <!-- Structured JSON logs: timestamp, level, logger (module package), MDC correlationId, and service version. -->
+    <property scope="context" name="service" value="gavel-api"/>
+    <property scope="context" name="serviceVersion" value="${SERVICE_VERSION:-dev}"/>
+    <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="ch.qos.logback.classic.encoder.JsonEncoder">
+            <withFormattedMessage>true</withFormattedMessage>
+            <withMessage>false</withMessage>
+            <withArguments>false</withArguments>
+        </encoder>
+    </appender>
+    <logger name="com.zaxxer.hikari" level="WARN"/>
+    <logger name="org.flywaydb" level="INFO"/>
+    <logger name="Exposed" level="WARN"/>
+    <root level="${LOG_LEVEL:-INFO}">
+        <appender-ref ref="JSON"/>
+    </root>
+</configuration>
