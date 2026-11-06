@@ -1,23 +1,53 @@
 package com.gavel
 
-import io.ktor.server.application.*
-import io.ktor.server.engine.*
-import io.ktor.server.netty.*
-import io.ktor.server.routing.*
-import io.ktor.server.response.*
+import com.gavel.config.AppConfig
 import com.gavel.infrastructure.DatabaseConfig
+import com.gavel.migration.FlywayConfig
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.application.Application
+import io.ktor.server.engine.embeddedServer
+import io.ktor.server.netty.Netty
+import io.ktor.server.response.respondText
+import io.ktor.server.routing.get
+import io.ktor.server.routing.routing
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.jetbrains.exposed.sql.Database
+import org.slf4j.LoggerFactory
+
+private val log = LoggerFactory.getLogger("com.gavel.Application")
 
 fun main() {
-    // Initialize database on startup
-    DatabaseConfig.initializeDatabase()
-    
-    embeddedServer(Netty, port = 8080, host = "0.0.0.0", module = Application::module).start(wait = true)
+    // Fails fast on missing production configuration.
+    val config = AppConfig.fromEnv()
+    log.info("Starting Gavel API (env={}, port={})", config.environment, config.port)
+
+    val dataSource = DatabaseConfig.createDataSource(config.database)
+    FlywayConfig.runMigrations(dataSource)
+    Database.connect(dataSource)
+
+    embeddedServer(Netty, host = "0.0.0.0", port = config.port, module = {
+        module(readinessCheck = {
+            withContext(Dispatchers.IO) { DatabaseConfig.isHealthy(dataSource) }
+        })
+    }).start(wait = true)
 }
 
-fun Application.module() {
+/**
+ * @param readinessCheck reports whether required infrastructure (the database)
+ * is reachable. `/health/ready` returns 503 while it returns false.
+ */
+fun Application.module(readinessCheck: suspend () -> Boolean = { true }) {
     routing {
-        get("/health") {
+        get("/health/live") {
             call.respondText("OK")
+        }
+        get("/health/ready") {
+            if (readinessCheck()) {
+                call.respondText("READY")
+            } else {
+                call.respondText("NOT READY", status = HttpStatusCode.ServiceUnavailable)
+            }
         }
     }
 }

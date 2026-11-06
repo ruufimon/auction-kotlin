@@ -16,7 +16,8 @@ CREATE TABLE orders (
     seller_id UUID NOT NULL,
     
     -- Winning bid amount (SET-001: order derived from closed auction)
-    amount DECIMAL(12, 2) NOT NULL CHECK (amount > 0),
+    -- Money in integer minor units of the deployment currency (no floating point)
+    amount_minor BIGINT NOT NULL CHECK (amount_minor > 0),
     
     -- Payment state machine (SET-006: webhook authoritative, not browser redirect)
     -- unpaid → paid → fulfilled

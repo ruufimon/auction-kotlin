@@ -17,8 +17,9 @@ CREATE TABLE listings (
     category VARCHAR(64),
     
     -- Pricing
-    starting_price DECIMAL(12, 2) NOT NULL CHECK (starting_price > 0),
-    current_highest_bid_amount DECIMAL(12, 2),
+    -- Money in integer minor units of the deployment currency (no floating point)
+    starting_price_minor BIGINT NOT NULL CHECK (starting_price_minor > 0),
+    current_highest_bid_minor BIGINT,
     current_highest_bidder_id UUID,
     
     -- Auction state machine (CAT-001: draft, scheduled, active, closed, cancelled)

@@ -1,5 +1,6 @@
 package com.gavel.auth
 
+import com.gavel.config.JwtSettings
 import org.junit.jupiter.api.Test
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -7,7 +8,14 @@ import kotlin.test.assertTrue
 
 class JwtTokenServiceTest {
     
-    private val tokenService = JwtTokenService()
+    private val tokenService = JwtTokenService(
+        JwtSettings(
+            secret = "test-secret-that-is-at-least-32-chars",
+            issuer = "test-issuer",
+            audience = "test-audience",
+            accessTokenTtlSeconds = 900,
+        )
+    )
 
     @Test
     fun testIssueAccessToken() {

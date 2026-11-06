@@ -253,65 +253,57 @@ Each feature owns its database migrations, packaged in its Gradle module. Migrat
 
 ### Migration Ownership
 
-| Feature | Migration Location | Prefix | Purpose |
-|---------|-------------------|--------|---------|
-| Shared | `app/src/main/resources/db/migration/shared/` | `V1_`, `V2_`, ... | Audit log, event outbox, session tables |
-| User-Onboarding | `features/user-onboarding/src/main/resources/db/migration/onboarding/` | `U1_`, `U2_`, ... | Users, refresh tokens, email verification |
-| Product-Catalog | `features/product-catalog/src/main/resources/db/migration/catalog/` | `C1_`, `C2_`, ... | Listings, images, auction state |
-| Bidding | `features/bidding/src/main/resources/db/migration/bidding/` | `B1_`, `B2_`, ... | Bids, bid history, concurrency control |
-| Settlement | `features/settlement/src/main/resources/db/migration/settlement/` | `S1_`, `S2_`, ... | Orders, payments, shipments |
+| Feature | Migration Location |
+|---------|-------------------|
+| Shared | `app/src/main/resources/db/migration/shared/` |
+| User-Onboarding | `features/user-onboarding/src/main/resources/db/migration/onboarding/` |
+| Product-Catalog | `features/product-catalog/src/main/resources/db/migration/catalog/` |
+| Bidding | `features/bidding/src/main/resources/db/migration/bidding/` |
+| Settlement | `features/settlement/src/main/resources/db/migration/settlement/` |
+
+Ownership is expressed by **folder**, not by file prefix. The locations are listed in `FlywayConfig.LOCATIONS`.
 
 ### Naming Convention
 
-**Format:** `V{version}_{description}.sql`
+**Format:** `V{yyyyMMddHHmm}__{description}.sql` (capital `V`, **two** underscores)
 
-**Version scheme:**
-- `V1_` through `V999_` — Sequential, zero-padded
-- Each feature increments independently within its prefix (U1, U2; C1, C2, etc.)
-- Shared uses global sequence (V1, V2, etc.) — apply first
+- The version is a UTC timestamp of when the migration was written. Versions are global across all folders, so every new file must use a timestamp later than any migration already applied.
+- Timestamps avoid collisions when features add migrations in parallel branches.
+- Flyway runs with `validateMigrationNaming(true)`: a misnamed file fails startup instead of being silently skipped.
 
 **Examples:**
-- `V1_create_audit_log.sql` — Shared setup
-- `V2_create_event_outbox.sql` — Shared outbox table
-- `U1_create_users_table.sql` — User-Onboarding migration 1
-- `U2_add_seller_enabled_column.sql` — User-Onboarding migration 2
-- `C1_create_listings_table.sql` — Catalog migration 1
+- `V202611060001__create_event_outbox_table.sql` — Shared
+- `V202611060101__create_users_table.sql` — User-Onboarding
+- `V202611071430__add_users_display_name.sql` — a later User-Onboarding change
 
-### Application Order (Determined by Flyway)
+### Application Order
 
-Flyway scans all locations and applies migrations in alphabetical order:
-1. `db/migration/shared/` (V prefix) — Applied first
-2. Feature folders (U, C, B, S prefixes) — Applied in that order
+Flyway sorts all migrations from all locations by version and applies them in that order. When a migration depends on another feature's table (e.g. a foreign key to `users`), its timestamp must be later.
 
-This ensures:
-- Shared infrastructure (outbox, audit) exists before features run
-- Deterministic ordering (no race conditions)
-- Easy rollback: one migration reversal file per version (future `V{version}__undo.sql`)
+Never edit a migration that has been applied to a shared environment (staging/production); add a new one instead.
 
 ### Adding a New Migration
 
 **Step 1: Create the file in your feature's migration folder**
 ```bash
-# For user-onboarding feature (migration 3)
-touch features/user-onboarding/src/main/resources/db/migration/onboarding/U3_add_email_index.sql
+touch features/user-onboarding/src/main/resources/db/migration/onboarding/V$(date -u +%Y%m%d%H%M)__add_email_index.sql
 ```
 
-**Step 2: Write the SQL**
+**Step 2: Write the SQL** (PostgreSQL 16)
 ```sql
--- features/user-onboarding/src/main/resources/db/migration/onboarding/U3_add_email_index.sql
-CREATE INDEX idx_users_email ON users(email) WHERE deleted_at IS NULL;
+CREATE INDEX idx_users_email_lower ON users (lower(email));
 ```
 
-**Step 3: Run the app**
+**Step 3: Verify**
+```bash
+./gradlew :app:test --tests '*MigrationTest*'   # applies all migrations to a Testcontainers PostgreSQL
+```
+Update the expected migration count and tables in `MigrationTest` when you add files.
+
+**Step 4: Run locally** (migrations apply on startup)
 ```bash
 docker-compose -f docker-compose.dev.yml up
-# Flyway automatically detects and applies U3_add_email_index.sql on startup
-```
-
-**Step 4: Verify in database**
-```bash
-psql -h localhost -U auction -d auction_db
-auction_db=# SELECT * FROM flyway_schema_history;
+psql -h localhost -U auction -d auction_db -c 'SELECT version, description FROM flyway_schema_history;'
 ```
 
 ### Within Migrations
@@ -319,11 +311,11 @@ auction_db=# SELECT * FROM flyway_schema_history;
 - Use `CASCADE` only for test/dev schemas; production must be explicit about deletion
 - Always include indexes on foreign keys and frequently queried fields
 - Document constraints: use `CONSTRAINT fk_...` names so they're visible in `\d`
+- Store money as `BIGINT` integer minor units (e.g. `amount_minor`), never `DECIMAL`/floating point
+- Partial unique constraints must be `CREATE UNIQUE INDEX ... WHERE ...`, not inline in `CREATE TABLE`
 - Add comments for business rules:
   ```sql
-  ALTER TABLE users ADD COLUMN email_verified BOOLEAN DEFAULT FALSE
-    CONSTRAINT ck_email_verified CHECK (email_verified IN (TRUE, FALSE))
-    COMMENT 'Email must be verified before bidding (USR-003)';
+  COMMENT ON COLUMN users.email_verified IS 'Email must be verified before bidding (USR-004)';
   ```
 
 ### Troubleshooting Migrations

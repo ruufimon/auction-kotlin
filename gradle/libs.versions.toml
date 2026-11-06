@@ -5,7 +5,7 @@ exposed = "0.41.1"
 postgresql = "42.7.2"
 hikaricp = "5.1.0"
 flyway = "10.0.1"
-testcontainers = "1.19.7"
+testcontainers = "1.21.4"
 junit = "5.10.0"
 kotlinx-serialization = "1.6.2"
 spring-security = "6.2.0"
@@ -26,6 +26,7 @@ ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "kto
 
 # Database
 exposed-core = { module = "org.jetbrains.exposed:exposed-core", version.ref = "exposed" }
+exposed-jdbc = { module = "org.jetbrains.exposed:exposed-jdbc", version.ref = "exposed" }
 exposed-dao = { module = "org.jetbrains.exposed:exposed-dao", version.ref = "exposed" }
 exposed-java-time = { module = "org.jetbrains.exposed:exposed-java-time", version.ref = "exposed" }
 postgresql-driver = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
@@ -55,7 +56,7 @@ testcontainers-junit-jupiter = { module = "org.testcontainers:junit-jupiter", ve
 [bundles]
 ktor-server = ["ktor-server-core", "ktor-server-netty", "ktor-server-auth", "ktor-server-auth-jwt", "ktor-server-call-logging"]
 ktor-client = ["ktor-client-core", "ktor-client-okhttp"]
-exposed = ["exposed-core", "exposed-dao", "exposed-java-time"]
+exposed = ["exposed-core", "exposed-jdbc", "exposed-dao", "exposed-java-time"]
 database = ["postgresql-driver", "hikaricp", "flyway-core", "flyway-postgresql"]
 logging = ["slf4j-api", "logback-classic"]
 testing = ["junit-api", "kotlin-test", "testcontainers-core", "testcontainers-postgresql", "testcontainers-junit-jupiter"]

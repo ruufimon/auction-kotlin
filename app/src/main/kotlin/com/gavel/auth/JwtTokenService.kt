@@ -2,6 +2,7 @@ package com.gavel.auth
 
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
+import com.gavel.config.JwtSettings
 import java.time.Instant
 import java.util.*
 
@@ -17,13 +18,12 @@ interface TokenService {
     fun validateAccessToken(token: String): JwtClaims?
 }
 
-class JwtTokenService : TokenService {
-    private val secret = System.getenv("JWT_SECRET") ?: "dev-secret-key-change-in-production"
-    private val issuer = System.getenv("JWT_ISSUER") ?: "auction-api"
-    private val audience = System.getenv("JWT_AUDIENCE") ?: "auction-client"
-    private val accessTokenTtlSeconds = System.getenv("JWT_ACCESS_TOKEN_TTL")?.toLongOrNull() ?: 900L  // 15 minutes
+class JwtTokenService(settings: JwtSettings) : TokenService {
+    private val issuer = settings.issuer
+    private val audience = settings.audience
+    private val accessTokenTtlSeconds = settings.accessTokenTtlSeconds
 
-    private val algorithm = Algorithm.HMAC256(secret)
+    private val algorithm = Algorithm.HMAC256(settings.secret)
 
     override fun issueAccessToken(userId: String, email: String): String {
         val now = Instant.now()

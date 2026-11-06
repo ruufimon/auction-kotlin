@@ -6,10 +6,16 @@ WORKDIR /workspace
 # independently of source changes.
 COPY gradlew settings.gradle.kts build.gradle.kts gradle.properties ./
 COPY gradle ./gradle
-RUN ./gradlew --no-daemon dependencies > /dev/null
+COPY app/build.gradle.kts ./app/
+COPY features/user-onboarding/build.gradle.kts ./features/user-onboarding/
+COPY features/product-catalog/build.gradle.kts ./features/product-catalog/
+COPY features/bidding/build.gradle.kts ./features/bidding/
+COPY features/settlement/build.gradle.kts ./features/settlement/
+RUN ./gradlew --no-daemon :app:dependencies > /dev/null
 
-COPY src ./src
-RUN ./gradlew --no-daemon installDist -x test
+COPY app/src ./app/src
+COPY features ./features
+RUN ./gradlew --no-daemon :app:installDist -x test
 
 # ---- Runtime stage ---------------------------------------------------------
 FROM eclipse-temurin:21-jre AS runtime
@@ -19,8 +25,8 @@ RUN groupadd --system app && useradd --system --gid app --no-create-home app
 
 # Dependencies change less often than application code; copy them as a
 # separate layer.
-COPY --from=build /workspace/build/install/auction/lib ./lib
-COPY --from=build /workspace/build/install/auction/bin ./bin
+COPY --from=build /workspace/app/build/install/app/lib ./lib
+COPY --from=build /workspace/app/build/install/app/bin ./bin
 
 USER app
 
@@ -31,4 +37,4 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --retries=3 \
     CMD curl -fsS "http://localhost:${PORT}/health/ready" || exit 1
 
-ENTRYPOINT ["/app/bin/auction"]
+ENTRYPOINT ["/app/bin/app"]

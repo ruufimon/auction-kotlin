@@ -1,39 +1,32 @@
 package com.gavel.infrastructure
 
+import com.gavel.config.DatabaseSettings
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
-import org.jetbrains.exposed.sql.Database
-import com.gavel.migration.FlywayConfig
+import javax.sql.DataSource
 
 object DatabaseConfig {
-    
-    fun initializeDatabase(): Database {
-        val dbHost = System.getenv("DB_HOST") ?: "localhost"
-        val dbPort = System.getenv("DB_PORT")?.toIntOrNull() ?: 5432
-        val dbName = System.getenv("DB_NAME") ?: "auction_db"
-        val dbUser = System.getenv("DB_USER") ?: "auction"
-        val dbPassword = System.getenv("DB_PASSWORD") ?: "dev-password"
-        
-        val jdbcUrl = "jdbc:postgresql://$dbHost:$dbPort/$dbName"
-        
+
+    fun createDataSource(settings: DatabaseSettings): HikariDataSource {
         val config = HikariConfig().apply {
-            this.jdbcUrl = jdbcUrl
-            username = dbUser
-            password = dbPassword
-            maximumPoolSize = 10
-            minimumIdle = 2
-            connectionTimeout = 30000
-            idleTimeout = 600000
-            maxLifetime = 1800000
+            jdbcUrl = settings.jdbcUrl
+            username = settings.user
+            password = settings.password
+            maximumPoolSize = settings.maxPoolSize
+            minimumIdle = minOf(2, settings.maxPoolSize)
+            connectionTimeout = 30_000
+            idleTimeout = 600_000
+            maxLifetime = 1_800_000
+            poolName = "gavel-db"
         }
-        
-        val dataSource = HikariDataSource(config)
-        
-        // Run Flyway migrations
-        FlywayConfig.runMigrations(dataSource)
-        
-        return Database.connect(dataSource).also {
-            println("Database connected: $jdbcUrl")
-        }
+        return HikariDataSource(config)
     }
+
+    /** True when a connection can be borrowed and validated within [timeoutSeconds]. */
+    fun isHealthy(dataSource: DataSource, timeoutSeconds: Int = 2): Boolean =
+        try {
+            dataSource.connection.use { it.isValid(timeoutSeconds) }
+        } catch (e: Exception) {
+            false
+        }
 }
