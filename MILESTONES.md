@@ -19,7 +19,7 @@ All milestones are now created and tracked on GitHub. This document provides a q
 ### M2: User-Onboarding Complete
 - **Week:** 1-2
 - **Focus:** Authentication feature
-- **Deliverables:** 8 auth endpoints (register, verify, signin, refresh, signout, profile, seller-enable)
+- **Deliverables:** Keycloak realm as code (Google + email/password), token validation, account bootstrap, suspension, profile, credit eligibility, seller-enable
 - **Dependencies:** M1
 - **Status:** Open
 - **URL:** https://github.com/ruufimon/auction-kotlin/milestone/2
@@ -67,18 +67,17 @@ All milestones are now created and tracked on GitHub. This document provides a q
 
 ## API Endpoints Summary
 
-**Total: 26 endpoints across 4 features**
+**Total: 22 application endpoints across 4 features, plus Keycloak's OIDC endpoints for identity**
 
-### User-Onboarding (8 endpoints)
+### User-Onboarding (4 application endpoints + Keycloak)
+Registration, email verification, sign-in (Google or email/password), token refresh and sign-out are
+Keycloak's standard OpenID Connect endpoints (requirement §6.1, PR #60). The application exposes:
 ```
-POST   /api/v1/auth/register
-POST   /api/v1/auth/verify-email
-POST   /api/v1/auth/signin
-POST   /api/v1/auth/refresh
-POST   /api/v1/auth/signout
+GET    /api/v1/me                                  (account bootstrap, USR-013)
 GET    /api/v1/profile/{userId}
-PUT    /api/v1/profile/{userId}
+PUT    /api/v1/profile/{userId}                    (profile; credit-eligibility inputs)
 POST   /api/v1/profile/{userId}/enable-seller
+POST   /internal/accounts/{userId}/suspend | /reactivate   (operator, USR-010)
 ```
 
 ### Product-Catalog (8 endpoints)
