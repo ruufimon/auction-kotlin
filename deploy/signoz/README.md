@@ -1,6 +1,7 @@
 # Self-hosted SigNoz for Gavel metrics
 
-One Droplet in `sgp1` running the SigNoz Docker Compose stack behind Caddy.
+One Droplet in `sgp1` running SigNoz (installed with SigNoz's Foundry tool, which renders
+and runs a Docker Compose stack) behind Caddy.
 Chosen over Grafana Cloud / New Relic to keep metrics on infrastructure we own; see
 `docs/M2_ONBOARDING_SLO.md` §4.3.
 
@@ -11,7 +12,8 @@ Chosen over Grafana Cloud / New Relic to keep metrics on infrastructure we own; 
 | Hostname | `<droplet-ip>.sslip.io` (Caddy obtains the Let's Encrypt cert; swap for a real DNS name when one exists) |
 | UI | `https://<host>/` — create the admin account on first visit |
 | Ingest | `https://<host>/v1/metrics`, `/v1/logs`, `/v1/traces` — require `Authorization: Bearer <INGEST_TOKEN>`, proxied to the OTel collector on 4318 |
-| Data | ClickHouse on the Droplet disk; set retention in SigNoz → Settings before it fills 80 GB |
+| Install dir | `/opt/signoz-foundry` (`casting.yaml`, generated `pours/deployment/compose.yaml`) |
+| Data | ClickHouse in Docker volumes on the Droplet disk; set retention in SigNoz → Settings before it fills 80 GB |
 
 ## Create or rebuild
 
@@ -27,6 +29,8 @@ doctl compute droplet create signoz-sgp1 --region sgp1 --size s-2vcpu-4gb --imag
 ```
 
 Bootstrap progress: `ssh root@<ip> tail -f /var/log/signoz-bootstrap.log`; done when `/var/lib/signoz-ready` exists.
+First boot then runs ClickHouse schema migrations for several minutes; the OTLP receiver (ingester) only starts
+listening after they finish, so early pushes get 502 from Caddy. Wait for `docker logs signoz-ingester-1` to go quiet.
 
 ## Point the API at it
 
@@ -49,5 +53,13 @@ App Platform secret. Nothing in SigNoz itself holds the token.
 ## Upgrade
 
 ```bash
-ssh root@<ip> 'cd /opt/signoz && git pull && cd deploy/docker && docker compose pull && docker compose up -d'
+ssh root@<ip> 'export PATH=/root/.local/bin:$PATH; cd /opt/signoz-foundry && foundryctl cast -f casting.yaml && docker compose -f pours/deployment/compose.yaml up -d --force-recreate'
+```
+
+## Operate
+
+```bash
+docker compose -f /opt/signoz-foundry/pours/deployment/compose.yaml ps
+docker compose -f /opt/signoz-foundry/pours/deployment/compose.yaml logs -f signoz-signoz-0
+docker compose -f /opt/signoz-foundry/pours/deployment/compose.yaml down   # never add -v: it deletes the data volumes
 ```

@@ -1,6 +1,9 @@
 #cloud-config
+# SigNoz on one Droplet via Foundry (SigNoz's supported installer since v0.130;
+# the old deploy/docker compose files no longer exist in the SigNoz repo).
+# Render with: envsubst '${INGEST_TOKEN}' < deploy/signoz/cloud-init.yaml > /tmp/signoz-init.yaml
 package_update: true
-packages: [ca-certificates, curl, git, gnupg, apt-transport-https, debian-keyring, debian-archive-keyring]
+packages: [ca-certificates, curl, gnupg, apt-transport-https, debian-keyring, debian-archive-keyring]
 write_files:
   - path: /usr/local/bin/signoz-bootstrap.sh
     permissions: '0755'
@@ -8,17 +11,31 @@ write_files:
       #!/usr/bin/env bash
       set -euxo pipefail
       exec > >(tee -a /var/log/signoz-bootstrap.log) 2>&1
-      # Docker
+      # Docker Engine + Compose v2 plugin
       curl -fsSL https://get.docker.com | sh
       systemctl enable --now docker
       # Caddy (official apt repo)
       curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
       curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' > /etc/apt/sources.list.d/caddy-stable.list
       apt-get update && apt-get install -y caddy
-      # SigNoz (docker compose deployment)
-      git clone --depth 1 https://github.com/SigNoz/signoz.git /opt/signoz
-      cd /opt/signoz/deploy/docker
-      docker compose -f docker-compose.yaml up -d --remove-orphans
+      # Foundry (installs foundryctl into /root/.local/bin)
+      curl -fsSL https://signoz.io/foundry.sh | bash
+      export PATH=/root/.local/bin:$PATH
+      mkdir -p /opt/signoz-foundry && cd /opt/signoz-foundry
+      cat > casting.yaml <<CASTING
+      apiVersion: v1alpha1
+      kind: Installation
+      metadata:
+        name: signoz
+      spec:
+        deployment:
+          flavor: compose
+          mode: docker
+      CASTING
+      # cast = validate Docker, render pours/deployment/compose.yaml, docker compose up -d.
+      # Publishes UI on 0.0.0.0:8080 and OTLP on 0.0.0.0:4317-4318; the cloud firewall
+      # only admits 22/80/443, so Caddy is the sole public entry point.
+      foundryctl cast -f casting.yaml
       # Public hostname via sslip.io so Caddy can get a Let's Encrypt cert without DNS setup
       IP=$(curl -fsS http://169.254.169.254/metadata/v1/interfaces/public/0/ipv4/address)
       HOST="${IP}.sslip.io"
