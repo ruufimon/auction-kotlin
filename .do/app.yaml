@@ -60,9 +60,19 @@ services:
       - key: DB_POOL_SIZE
         scope: RUN_TIME
         value: "10"
-      # Secret: set the value (32+ chars) in the DigitalOcean console or via
-      # `doctl apps update`; App Platform encrypts it. Never commit real values.
-      - key: JWT_SECRET
+      # Identity provider (Keycloak realm, issue #19). Until the realm is deployed this
+      # placeholder keeps the app bootable; every bearer token is rejected with 401.
+      - key: OIDC_ISSUER
+        scope: RUN_TIME
+        value: https://keycloak.not-yet-deployed.invalid/realms/gavel
+      # Secrets: set values in the DigitalOcean console or via `doctl apps update`
+      # (App Platform encrypts them). Never commit real values.
+      # ASSESSMENT_ENCRYPTION_KEY: base64 of 32 random bytes (`openssl rand -base64 32`).
+      - key: ASSESSMENT_ENCRYPTION_KEY
+        scope: RUN_TIME
+        type: SECRET
+      # INTERNAL_API_TOKEN: shared secret for the operator endpoints under /internal.
+      - key: INTERNAL_API_TOKEN
         scope: RUN_TIME
         type: SECRET
       # Metrics export to the self-hosted SigNoz (deploy/signoz/README.md).

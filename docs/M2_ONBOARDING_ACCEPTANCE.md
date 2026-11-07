@@ -46,12 +46,12 @@
 2. **Operator suspend / reactivate** endpoints now live in #22; their own authentication (operator role) is still undefined.
 3. **SMTP provider** for Keycloak's verification mail and **Google OAuth client credentials** are user actions before #19 can be tested end to end.
 4. **Re-assessment policy** (retry window after a failed assessment) is undefined in the requirements; `credit-eligibility.feature` assumes the policy declares one.
-5. **Error codes** used here (`TOKEN_INVALID`, `TOKEN_EXPIRED`, `TOKEN_WRONG_AUDIENCE`, `ACCOUNT_*`, `CREDIT_ELIGIBILITY_NOT_MET`, `SELLER_PROFILE_INCOMPLETE`, `VERSION_CONFLICT`, `RATE_LIMITED`, `REACTIVATION_PRECONDITIONS_NOT_MET`) are proposals; they become the contract once M2-4 (#20) lands.
+5. **Error codes** (`TOKEN_MISSING`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `TOKEN_WRONG_AUDIENCE`, `ACCOUNT_NOT_BOOTSTRAPPED`, `ACCOUNT_*` state codes, `FORBIDDEN`, `VALIDATION_FAILED`, `CREDIT_ELIGIBILITY_NOT_MET`, `ASSESSMENT_RETRY_NOT_YET_ALLOWED`, `SELLER_PROFILE_INCOMPLETE`, `SELLER_ALREADY_ENABLED`, `VERSION_CONFLICT`, `RATE_LIMITED`, `REACTIVATION_PRECONDITIONS_NOT_MET`) are now the implemented contract (`kernel` `ApiError`, `onboarding` `ErrorMapping.kt`).
 
-## How these become executable
+## Status (2026-11-07)
 
-See `features/user-onboarding/src/test/resources/acceptance/README.md`. In short:
-Cucumber-JVM on the JUnit platform, step definitions in the onboarding module driving
-Ktor `testApplication` over the Testcontainers PostgreSQL fixture from #16 plus a
-Testcontainers Keycloak importing the versioned realm and a Mailpit container for mail,
-`@ui` scenarios deferred to the browser E2E suite (#42).
+Wired and running: `./gradlew :features:user-onboarding:test` executes every scenario that does not
+need the real realm, another milestone's endpoints or a browser. 59 scenarios pass against the
+application; `@provider` (19), `@cross-feature` (12), `@ui` (8) and `@wip` (1: SigNoz visibility of
+abuse events) are excluded until #19, M3–M5, #42 and the logs pipeline exist. Harness details:
+`features/user-onboarding/src/test/resources/acceptance/README.md`.
