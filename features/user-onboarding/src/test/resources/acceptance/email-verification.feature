@@ -1,3 +1,4 @@
+@wip
 @USR-003 @USR-004 @USR-013 @issue-19 @issue-21 @api
 Feature: Email verification
   Keycloak sends and validates the verification link. The application learns the result

@@ -46,6 +46,16 @@ class TestIdentityProvider(
     fun registerGoogleUser(email: String, displayName: String? = null): User =
         upsert(User("kc-" + UUID.randomUUID(), email.trim().lowercase(), emailVerified = true, displayName = displayName))
 
+    /**
+     * Google brokered sign-in as Keycloak's first-broker-login flow behaves: an existing
+     * provider user with the same (now verified) email is linked, so the subject is unchanged.
+     */
+    fun signInWithGoogle(email: String, displayName: String? = null): User {
+        val existing = userOrNull(email)
+        return if (existing != null) upsert(existing.copy(emailVerified = true, displayName = existing.displayName ?: displayName))
+        else registerGoogleUser(email, displayName)
+    }
+
     fun markEmailVerified(email: String): User {
         val u = user(email)
         return upsert(u.copy(emailVerified = true))

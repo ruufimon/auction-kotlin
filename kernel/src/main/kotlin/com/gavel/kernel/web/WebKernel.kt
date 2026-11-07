@@ -30,10 +30,12 @@ val ApiJson: Json = Json {
 
 class WebKernelConfig {
     internal var rateLimits: RateLimitConfig.() -> Unit = {}
+    internal var hasRateLimits = false
 
     /** Register named rate limiters that routes refer to with `rateLimit(RateLimitName("…"))`. */
     fun rateLimits(configure: RateLimitConfig.() -> Unit) {
         rateLimits = configure
+        hasRateLimits = true
     }
 }
 
@@ -50,7 +52,8 @@ fun Application.installWebKernel(configure: WebKernelConfig.() -> Unit = {}) {
         verify { it.isNotBlank() && it.length <= 128 }
     }
     install(ContentNegotiation) { json(ApiJson) }
-    install(RateLimit) { config.rateLimits(this) }
+    // The plugin refuses to install with no limiter registered.
+    if (config.hasRateLimits) install(RateLimit) { config.rateLimits(this) }
     install(StatusPages) {
         exception<ApiException> { call, cause ->
             call.respondError(cause.status, cause.code, cause.message, cause.details)

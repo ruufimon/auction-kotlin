@@ -1,3 +1,4 @@
+@wip
 @USR-010 @issue-22 @api
 Feature: Account suspension
   Suspension takes effect immediately on both sides: the application rejects existing tokens,

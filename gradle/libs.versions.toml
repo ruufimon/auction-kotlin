@@ -62,6 +62,7 @@ logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "lo
 cucumber-java = { module = "io.cucumber:cucumber-java", version.ref = "cucumber" }
 cucumber-junit-platform-engine = { module = "io.cucumber:cucumber-junit-platform-engine", version.ref = "cucumber" }
 junit-platform-suite = { module = "org.junit.platform:junit-platform-suite", version.ref = "junit-platform" }
+cucumber-picocontainer = { module = "io.cucumber:cucumber-picocontainer", version.ref = "cucumber" }
 
 # Testing
 junit-api = { module = "org.junit.jupiter:junit-jupiter-api", version.ref = "junit" }
@@ -80,7 +81,7 @@ database = ["postgresql-driver", "hikaricp", "flyway-core", "flyway-postgresql"]
 logging = ["slf4j-api", "logback-classic"]
 observability = ["ktor-server-metrics-micrometer", "micrometer-core", "micrometer-registry-otlp"]
 testing = ["junit-api", "kotlin-test", "testcontainers-core", "testcontainers-postgresql", "testcontainers-junit-jupiter"]
-acceptance = ["cucumber-java", "cucumber-junit-platform-engine", "junit-platform-suite"]
+acceptance = ["cucumber-java", "cucumber-junit-platform-engine", "cucumber-picocontainer", "junit-platform-suite"]
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

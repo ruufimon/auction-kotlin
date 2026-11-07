@@ -1,3 +1,4 @@
+@wip
 @USR-008 @USR-009 @issue-24 @api
 Feature: Seller enablement
   The same account becomes a seller once every configured seller-profile

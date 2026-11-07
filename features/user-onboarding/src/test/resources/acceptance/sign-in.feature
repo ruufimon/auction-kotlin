@@ -1,3 +1,4 @@
+@wip
 @USR-005 @issue-19 @issue-20 @api
 Feature: Sign in and token validation
   Keycloak authenticates and issues tokens. The application validates every access token

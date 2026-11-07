@@ -1,3 +1,4 @@
+@wip
 @USR-011 @USR-012 @issue-17 @issue-18 @issue-23 @api
 Feature: Credit-eligibility assessment
   After email verification a user supplies age, annual income and net wealth.

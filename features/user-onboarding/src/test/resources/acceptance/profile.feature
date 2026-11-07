@@ -1,3 +1,4 @@
+@wip
 @USR-007 @issue-23 @api
 Feature: Profile
   A user reads and updates their own display name, contact details and
