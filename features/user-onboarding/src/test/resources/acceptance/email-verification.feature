@@ -1,61 +1,61 @@
-@USR-003 @USR-004 @issue-20 @api
+@USR-003 @USR-004 @USR-013 @issue-19 @issue-21 @api
 Feature: Email verification
-  A verification token works once, expires, and moves the account to
-  PENDING_CREDIT_ELIGIBILITY without activating it.
+  Keycloak sends and validates the verification link. The application learns the result
+  from the email_verified claim and moves the account to PENDING_CREDIT_ELIGIBILITY
+  without activating it.
 
   Background:
-    Given verification tokens expire after 24 hours
-    And "mina@example.com" registered at "2026-11-07T10:00:00Z" and received a verification token
+    Given a Keycloak realm created from deploy/keycloak/realm-gavel.json with verify-email required
+    And "mina@example.com" registered with a password at "2026-11-07T10:00:00Z" and received a verification email
 
-  Scenario: A valid token verifies the email and advances the account state
-    When the token is submitted at "2026-11-07T10:30:00Z"
-    Then the response status is 200
-    And the account has "emailVerified" true with an "emailVerifiedAt" timestamp
-    And the account state is "PENDING_CREDIT_ELIGIBILITY"
-    And the token is marked consumed
-    And a "user-onboarding.email-verified" event is written to the outbox
+  Scenario: A valid link verifies the email at the provider and advances the account on the next request
+    When the verification link is opened at "2026-11-07T10:30:00Z"
+    And the user signs in again and the web app calls GET /api/v1/me
+    Then the token claim "email_verified" is true
+    And the response "accountState" is "PENDING_CREDIT_ELIGIBILITY"
+    And an "user-onboarding.email-verified" event is written to the outbox
 
   Scenario: Verification alone does not activate the account
-    Given the token has been submitted successfully
+    Given the email has been verified
     When that user attempts to place a bid on an active auction
     Then the response status is 403
-    And the error code is "ACCOUNT_NOT_ACTIVE"
+    And the error code is "ACCOUNT_PENDING_CREDIT_ELIGIBILITY"
     When that user attempts to publish a listing
     Then the response status is 403
 
-  Scenario: A token cannot be used twice
-    Given the token has been submitted successfully
-    When the same token is submitted again
-    Then the response status is 422
-    And the error code is "VERIFICATION_TOKEN_USED"
+  Scenario: A valid token whose email_verified claim is false is refused for bidding
+    Given a valid access token for "mina@example.com" with "email_verified" false
+    When it is used to place a bid
+    Then the response status is 403
+    And the error code is "ACCOUNT_PENDING_VERIFICATION"
+
+  Scenario: A verification link cannot be used twice (provider)
+    Given the link has been used successfully
+    When the same link is opened again
+    Then Keycloak shows its already-verified / link-no-longer-valid page
     And the account state is still "PENDING_CREDIT_ELIGIBILITY"
 
-  Scenario: An expired token is rejected
-    When the token is submitted at "2026-11-08T10:00:01Z"
-    Then the response status is 404
-    And the error code is "VERIFICATION_TOKEN_EXPIRED"
+  Scenario: An expired link is rejected (provider)
+    Given the realm action-token lifespan is 24 hours
+    When the link is opened at "2026-11-08T10:00:01Z"
+    Then Keycloak shows its link-expired page with a resend action
     And the account state is still "PENDING_VERIFICATION"
 
-  Scenario: An unknown or tampered token is rejected without revealing whether the email exists
-    When a token "not-a-real-token" is submitted for "mina@example.com"
-    Then the response status is 400
-    And the error code is "VERIFICATION_TOKEN_INVALID"
-    And the response is identical for an email that was never registered
-
-  Scenario: Resending issues a new token and invalidates the previous one
+  Scenario: Resend issues a new link and invalidates the previous one (provider)
     When the user requests a new verification email
     Then a second verification email is sent
-    And the first token is rejected with "VERIFICATION_TOKEN_INVALID"
-    And the second token verifies the email
+    And the first link is rejected
+    And the second link verifies the email
 
   Scenario: Verification is recorded for audit
-    When the token is submitted successfully
+    When the email is verified and the account transitions
     Then the audit log holds an entry with actor = the user, action = "email.verified" and the aggregate id
-    And the entry does not contain the token value
+    And Keycloak's event log holds a VERIFY_EMAIL event for the user
 
   @ui @issue-30
-  Scenario: Verify-email landing page distinguishes outcomes
-    Given the web app verification landing page is opened with a token
-    Then a valid token shows a success state and a call to action for the eligibility check
-    And an expired token shows an explanation and a resend action
-    And a used token shows an explanation and a sign-in action
+  Scenario: Post-login routing by account state
+    Given the web app receives tokens after login
+    When GET /api/v1/me returns "PENDING_VERIFICATION"
+    Then the app shows the "check your email" page with a resend action
+    When GET /api/v1/me returns "PENDING_CREDIT_ELIGIBILITY"
+    Then the app routes to the eligibility assessment

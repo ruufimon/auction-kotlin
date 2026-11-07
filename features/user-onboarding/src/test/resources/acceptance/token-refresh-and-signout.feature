@@ -1,73 +1,54 @@
-@USR-005 @USR-006 @issue-22 @issue-23 @api
+@USR-005 @USR-006 @issue-19 @issue-31 @api
 Feature: Token refresh and sign-out
-  Refresh tokens rotate on every use, reuse burns the whole family,
-  and sign-out revokes immediately.
+  Refresh, rotation, reuse detection and sign-out are provider behaviours configured in the
+  versioned realm; the application never stores a refresh token.
 
   Background:
-    Given "mina@example.com" is ACTIVE and signed in, holding refresh token "R1" in family "F1"
+    Given a Keycloak realm created from deploy/keycloak/realm-gavel.json with "Revoke Refresh Token" on and max reuse 0
+    And "mina@example.com" is ACTIVE and signed in, holding refresh token "R1"
 
   Scenario: Refresh rotates the token
-    When "R1" is presented to the refresh endpoint
-    Then the response status is 200
-    And a new access token is issued
-    And a new refresh token "R2" in family "F1" is issued
-    And "R1" is marked revoked
-    And a "user-onboarding.token-rotated" audit event is recorded
+    When "R1" is presented to Keycloak's token endpoint
+    Then a new access token and a new refresh token "R2" are issued
+    And Keycloak's event log records REFRESH_TOKEN
 
-  Scenario: A rotated token cannot be reused, and reuse invalidates the family
+  Scenario: A rotated token cannot be reused, and reuse ends the session
     Given "R1" was rotated into "R2"
     When "R1" is presented again
-    Then the response status is 401
-    And the error code is "REFRESH_TOKEN_REUSED"
-    And every token in family "F1", including "R2", is revoked
-    When "R2" is presented
-    Then the response status is 401
+    Then Keycloak returns an invalid_grant error
+    And the session is ended so "R2" is also rejected
+    And Keycloak's event log records REFRESH_TOKEN_ERROR
 
   Scenario: An expired refresh token is rejected
-    Given "R1" expired one second ago
+    Given "R1" is older than the refresh lifespan
     When "R1" is presented
-    Then the response status is 401
-    And the error code is "REFRESH_TOKEN_EXPIRED"
+    Then Keycloak returns an invalid_grant error
 
-  Scenario: An unknown refresh token is rejected
-    When a refresh token that was never issued is presented
-    Then the response status is 401
-    And the error code is "REFRESH_TOKEN_INVALID"
+  Scenario: Sign-out ends the session
+    When the web app calls Keycloak's end-session endpoint with the session's id token
+    Then "R1" is rejected on the next refresh
+    And Keycloak's event log records LOGOUT
 
-  Scenario: Refresh is refused once the account is no longer active
-    Given the account is suspended after "R1" was issued
-    When "R1" is presented
-    Then the response status is 403
-    And the error code is "ACCOUNT_SUSPENDED"
-    And "R1" is revoked
+  Scenario: Sign-out everywhere
+    Given the user also has a session on another device
+    When the user chooses "sign out all devices" (Keycloak account console or admin logout)
+    Then both sessions' refresh tokens are rejected
 
-  Scenario: Sign-out revokes the presented refresh token
-    When "R1" is presented to the sign-out endpoint
-    Then the response status is 204
-    And "R1" is marked revoked
-    When "R1" is presented to the refresh endpoint
-    Then the response status is 401
-
-  Scenario: Sign-out everywhere revokes every token for the user
-    Given the user also holds refresh token "R9" in family "F2" from another device
-    When the user signs out with "allDevices" = true
-    Then "R1" and "R9" are both revoked
-
-  Scenario: Refresh tokens are never stored or logged in plaintext
-    Then the refresh_tokens table holds only hashes of "R1"
-    And the raw value of "R1" appears nowhere in the application logs
+  Scenario: The application holds no refresh tokens
+    Then the application database has no table or column containing refresh tokens
+    And the application logs contain no refresh-token values
 
   Scenario: An expired access token is rejected by protected endpoints
-    Given the access token issued with "R1" is 16 minutes old
+    Given the access token is 16 minutes old
     When it is used to read the user's profile
     Then the response status is 401
-    And the error code is "ACCESS_TOKEN_EXPIRED"
+    And the error code is "TOKEN_EXPIRED"
 
   @ui @issue-31
   Scenario: The web app refreshes transparently and handles revocation
     Given the web app has a valid refresh token and an expired access token
-    When two API calls fail with 401 at the same time
-    Then exactly one refresh request is sent
+    When two API calls fail with 401 TOKEN_EXPIRED at the same time
+    Then exactly one refresh request is sent to Keycloak
     And both calls are retried with the new access token
-    When a later refresh returns "REFRESH_TOKEN_REUSED"
+    When a later refresh fails with invalid_grant
     Then the app clears local session state and redirects to sign-in with an explanation

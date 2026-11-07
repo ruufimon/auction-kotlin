@@ -2,19 +2,20 @@
 
 Executable specification for milestone M2 (User-Onboarding Complete), written as
 Gherkin so each scenario traces to a requirement in `requirement.md` §5.1 / §9.1
-and to a GitHub issue.
+and to a GitHub issue. Identity is provided by Keycloak (requirement PR #60): scenarios
+marked "(provider)" exercise the versioned realm through a Testcontainers Keycloak.
 
 | File | Requirements | Issues |
 |---|---|---|
-| `registration.feature` | USR-001, USR-002, USR-003, USR-009 | #19, #30 |
-| `email-verification.feature` | USR-003, USR-004, §5.1 states | #20, #30 |
-| `sign-in.feature` | USR-005 | #21, #31 |
-| `token-refresh-and-signout.feature` | USR-005, USR-006 | #22, #23, #31 |
+| `registration.feature` | USR-001, USR-002, USR-003, USR-009, USR-013 | #19, #21, #30 |
+| `email-verification.feature` | USR-003, USR-004, USR-013, §5.1 states | #19, #21, #30 |
+| `sign-in.feature` | USR-005 (token validation, account-state authorization) | #19, #20, #31 |
+| `token-refresh-and-signout.feature` | USR-005, USR-006 (provider behaviour) | #19, #31 |
 | `credit-eligibility.feature` | USR-011, USR-012 | #17, #18, #23, #32 |
 | `profile.feature` | USR-007 | #23, #32 |
 | `seller-enablement.feature` | USR-008, USR-009 | #24, #32 |
-| `suspension.feature` | USR-010 | cross-cutting |
-| `abuse-controls.feature` | §8.2 rate limiting | no issue yet |
+| `suspension.feature` | USR-010 (both systems) | #22 |
+| `abuse-controls.feature` | §8.2 (provider brute force + app bootstrap limit) | #19, #21 |
 
 ## Conventions
 
@@ -36,10 +37,27 @@ Not wired yet. The intended harness, to be added with the first M2 API pull requ
 2. Step definitions live in `features/user-onboarding/src/test/kotlin/.../acceptance/`
    and drive the Ktor app with `testApplication` against the Testcontainers
    PostgreSQL fixture from M1-8 (#16).
-3. Mail is captured through the `EmailService` stub from #20; time is controlled
-   through an injectable `Clock`.
+3. Keycloak runs as a Testcontainers container importing `deploy/keycloak/realm-gavel.json`;
+   mail is captured with a MailHog/Mailpit container as the realm's SMTP; time is controlled
+   through an injectable `Clock` in the app and token lifespans in a test realm override.
 4. `@ui` scenarios are excluded from `./gradlew test` and run by the browser E2E
    suite (#42) once the web app exists.
 
 Until then these files are the acceptance criteria reviewers check pull requests
 against.
+
+## Testing with and without Keycloak
+
+Keycloak is bypassed wherever the subject under test is the application, and required only
+where the subject is the realm configuration itself.
+
+| Layer | Keycloak? | How |
+|---|---|---|
+| Domain unit tests | No | The account aggregate has no identity-provider dependency. |
+| Ktor route tests (bootstrap, authorization by state, profile, assessment, seller, token-rejection cases) | No | The validator trusts a JWKS served by the test itself; tests mint tokens with the claims each scenario needs (`sub`, `email`, `email_verified`, `aud`, `exp`). Wrong-key, wrong-issuer, wrong-audience and expired cases use a second test key or altered claims. |
+| Provider scenarios (rotation, reuse, brute force, verification links, password policy, Google linking) | **Yes** | Testcontainers Keycloak importing `deploy/keycloak/realm-gavel.json`; a mock OIDC server stands in for Google in the test realm. Tagged `@provider`; run on realm changes and nightly, not on every commit. |
+| Local development | Yes (compose) | Real Keycloak in `docker-compose.dev.yml` with the versioned realm and seeded users. Optional non-production-only extra trusted JWKS file for fast loops; the app refuses to start with it set in production. |
+| Browser E2E (#42) | Yes | Log in once through the themed Keycloak page with a seeded password user; reuse the browser storage state. Never a real Google account. |
+
+Rules: no bypass flag in production code paths (the only seam is which signing keys are trusted), and
+every minted test token still passes through the real validator.
