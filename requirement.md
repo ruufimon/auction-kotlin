@@ -15,7 +15,7 @@ The system supports timed English auctions for single-quantity physical goods. O
 
 ### 2.1 In scope
 
-- Email and password registration, verification, authentication, and profile management.
+- Registration and authentication through a self-hosted identity provider (Keycloak) offering Google sign-in and email-and-password accounts, email verification, and in-application profile management.
 - Seller enablement through completion of required seller and shipping information.
 - Creation, publication, discovery, and lifecycle management of auction listings.
 - Fixed-deadline ascending-price bidding with atomic bid acceptance.
@@ -59,24 +59,26 @@ The system supports timed English auctions for single-quantity physical goods. O
 
 #### Capabilities
 
-- **USR-001:** A visitor can register with a unique normalized email address and password.
-- **USR-002:** Passwords must meet a configurable minimum policy and be stored only as hashes produced by a memory-hard password hashing algorithm.
-- **USR-003:** Registration sends a single-use, expiring email verification token.
-- **USR-004:** A user must verify their email before bidding or publishing a listing.
-- **USR-005:** A verified, active user can authenticate and receive a short-lived JWT access token and a rotating refresh token.
-- **USR-006:** Refresh tokens are stored as hashes, have an expiry time, and are invalidated when rotated, reused, revoked, or the account is suspended.
+- **USR-001:** A visitor can register through the identity provider either with Google sign-in or with a unique normalized email address and password. A Google identity whose verified email matches an existing account links to that account; it never creates a second one.
+- **USR-002:** Password policy and storage are the identity provider's responsibility: passwords must meet a configurable minimum policy and be stored only as hashes produced by a memory-hard algorithm. The application never receives, logs, or stores a password.
+- **USR-003:** Email-and-password registration triggers a single-use, expiring verification email from the identity provider. A Google identity with a verified email is treated as verified on first sign-in.
+- **USR-004:** A user must have a verified email before bidding or publishing a listing. The application enforces this from its own account state, not from the token alone.
+- **USR-005:** A user authenticates with the identity provider through the OpenID Connect authorization-code flow with PKCE and receives a short-lived JWT access token and a rotating refresh token issued by the provider. The application accepts only access tokens it has validated against the provider's published signing keys, issuer, and audience.
+- **USR-006:** Refresh tokens are rotated on every use, invalidated on reuse, revocation, expiry, or account suspension, and never stored by the application. These behaviours are enforced by identity-provider configuration that is versioned with the application.
 - **USR-007:** A user can view and update their display name, contact details, shipping address, and seller profile.
 - **USR-008:** A user becomes eligible to sell only after supplying all configured seller-profile and origin-address fields.
 - **USR-009:** One account can act as both buyer and seller; no separate role registration is required.
-- **USR-010:** Account suspension immediately prevents authentication refresh, bidding, listing publication, and fulfillment updates. Existing records remain available for audit and operational resolution.
+- **USR-010:** Account suspension immediately prevents authentication refresh, bidding, listing publication, and fulfillment updates. Suspension disables the identity-provider account so that sign-in and refresh fail, and sets the application account state so that access tokens issued before suspension are rejected. Existing records remain available for audit and operational resolution.
 - **USR-011:** After email verification, a user supplies their age, annual income, and net wealth for an internally calculated credit-eligibility assessment. Income and wealth are expressed in integer minor units.
 - **USR-012:** The server evaluates the supplied values using a versioned, deployment-configured scoring policy. An account becomes active only when it meets the configured minimum score. The assessment outcome, policy version, and timestamp are auditable; raw assessment inputs are encrypted at rest, excluded from logs, and retained only according to the applicable data-retention policy.
+- **USR-013:** The application keeps its own account record for every user, keyed by the identity provider's stable subject identifier and exposed through an opaque public user id. The record is created on the user's first authenticated request, in `PENDING_VERIFICATION` when the token's email is unverified and in `PENDING_CREDIT_ELIGIBILITY` when it is verified. Display name and email are copied from the token on creation and refreshed when the provider reports a change.
+- **USR-014:** Identity-provider configuration (realm, clients, Google identity brokering, password policy, token lifetimes, brute-force protection, required actions) is exported and versioned in the repository, and every environment is created from that export.
 
 #### Account states
 
 `PENDING_VERIFICATION -> PENDING_CREDIT_ELIGIBILITY -> ACTIVE -> SUSPENDED`
 
-- Successful email verification moves an account from `PENDING_VERIFICATION` to `PENDING_CREDIT_ELIGIBILITY`.
+- Successful email verification at the identity provider moves an account from `PENDING_VERIFICATION` to `PENDING_CREDIT_ELIGIBILITY`; the application learns of it from the `email_verified` claim on the next request or from a provider event. Google sign-ins with a verified email enter directly at `PENDING_CREDIT_ELIGIBILITY`.
 - A successful credit-eligibility assessment moves an account from `PENDING_CREDIT_ELIGIBILITY` to `ACTIVE`; an unsuccessful assessment leaves the account pending and returns a stable reason.
 - Suspension may occur from `PENDING_VERIFICATION`, `PENDING_CREDIT_ELIGIBILITY`, or `ACTIVE`.
 - Reactivation is an operator action and returns the account to `ACTIVE` only when its email has been verified and it has passed credit eligibility.
@@ -85,9 +87,10 @@ The system supports timed English auctions for single-quantity physical goods. O
 
 ```mermaid
 flowchart TD
-    Visitor[Visitor] --> Register[Register with email and password]
-    Register --> PendingVerification[PENDING_VERIFICATION]
-    PendingVerification -->|Verify email| PendingCredit[PENDING_CREDIT_ELIGIBILITY]
+    Visitor[Visitor] --> Register[Register at identity provider]
+    Register -->|Email and password| PendingVerification[PENDING_VERIFICATION]
+    Register -->|Google sign-in, verified email| PendingCredit[PENDING_CREDIT_ELIGIBILITY]
+    PendingVerification -->|Verify email| PendingCredit
     PendingCredit --> SubmitAssessment[Submit age, annual income, and net wealth]
     SubmitAssessment --> Score{Meets configured\ncredit score?}
     Score -->|Yes| Active[ACTIVE]
@@ -176,11 +179,12 @@ The application exposes versioned JSON REST endpoints under `/api/v1`. Concrete 
 
 ### 6.1 User onboarding API
 
-- Register, verify email, sign in, refresh tokens, and sign out.
-- Get and update the authenticated user's profile.
+- Registration, email verification, sign-in, token refresh, and sign-out are provided by the identity provider's standard OpenID Connect endpoints, not by the application API.
+- Get the authenticated user's account (creating it on first call per USR-013) and update the authenticated user's profile.
 - Submit credit-eligibility inputs and retrieve the authenticated user's current assessment outcome and stable eligibility reason, without exposing the score or scoring-policy details.
 - Complete seller-profile information.
-- Access tokens are sent as bearer tokens. Refresh tokens must be handled through a transport and storage mechanism appropriate for the client threat model.
+- Access tokens issued by the identity provider are sent as bearer tokens. Refresh tokens are held by the client's OpenID Connect library through a transport and storage mechanism appropriate for the client threat model; the application never sees them.
+- Every authenticated endpoint authorizes against the application account state (USR-004, USR-010, USR-012), never against token validity alone.
 
 ### 6.2 Product catalog API
 
@@ -219,12 +223,13 @@ The application exposes versioned JSON REST endpoints under `/api/v1`. Concrete 
 - PostgreSQL as the transactional database.
 - Exposed for database access and transaction management.
 - Flyway for versioned database migrations.
+- Keycloak as the OpenID Connect identity provider, brokering Google and hosting email-and-password accounts; the application integrates only through standard OIDC (discovery, JWKS, token claims) and the Keycloak admin API for suspension.
 
 ### 7.2 Gradle modules
 
 - **`app`:** Ktor startup, configuration, routing assembly, dependency wiring, authentication installation, schedulers, and process lifecycle.
 - **`shared-kernel`:** Stable primitives such as typed identifiers, money, clocks, pagination contracts, and event envelope types.
-- **`user-onboarding`:** Account, credentials, verification, tokens, profiles, and eligibility rules.
+- **`user-onboarding`:** Account records keyed by provider subject, verification-state projection, profiles, eligibility rules, seller enablement, and the identity-provider adapter (token claims in, suspension out). No credentials or tokens are stored here.
 - **`product-catalog`:** Listings, categories, images, scheduling, discovery, and listing lifecycle.
 - **`bidding`:** Bids, bid validation, price progression, concurrency control, and winner determination.
 - **`settlement`:** Orders, payment attempts, payment-provider integration, shipment, and delivery.
@@ -263,7 +268,7 @@ Expected event flows include:
 
 ### 7.5 Deployment model
 
-- All modules compile into one application artifact and run in one process.
+- All modules compile into one application artifact and run in one process. The identity provider is the single sanctioned exception: Keycloak runs as its own deployment with its own database schema, and the application depends on it only over OpenID Connect and its admin API.
 - The application uses one PostgreSQL deployment with exclusive logical table ownership per module.
 - The HTTP server, scheduled auction lifecycle work, and outbox dispatcher may run in the same deployment, but jobs must use database coordination so multiple application instances are safe.
 - Configuration is supplied through environment variables or external configuration; secrets are never committed to source control.
@@ -283,7 +288,7 @@ Expected event flows include:
 - Authorization is enforced in application use cases as well as at transport boundaries where appropriate.
 - Passwords, tokens, payment secrets, and sensitive personal data are redacted from logs.
 - Sensitive configuration is loaded from secret-capable environment configuration.
-- Login, token refresh, verification, and payment-webhook endpoints require rate limiting or equivalent abuse controls.
+- Login, token refresh, and verification abuse controls are provided by the identity provider's brute-force protection and must be enabled in its versioned configuration. The payment-webhook endpoint and the account bootstrap endpoint require application-side rate limiting or equivalent controls.
 - Personal and financial records follow the deployment jurisdiction's retention and deletion policy.
 
 ### 8.3 Observability
@@ -291,24 +296,37 @@ Expected event flows include:
 - Emit structured logs containing timestamp, severity, service version, module, correlation ID, and safe entity identifiers.
 - Propagate correlation IDs through HTTP requests, domain events, and external-provider calls.
 - Record metrics for request latency and errors, bid acceptance and rejection, auction closure lag, payment outcomes, outbox backlog, retries, and dead-lettered events.
+- Record onboarding metrics: account bootstrap outcomes, token-validation failures by stable code, assessment and seller-enablement outcomes by stable code, credit-assessment outcomes by policy version, and bootstrap rate-limit activations. Sign-in, refresh, verification, and brute-force events are collected from the identity provider's event stream or metrics endpoint.
+- Metric names, labels, and log fields never carry personal data, credentials, tokens, or credit-assessment inputs; stable outcome codes and policy versions are permitted.
 - Audit account state changes, listing publication and cancellation, accepted bids, auction closure, payment transitions, and fulfillment transitions.
 
 ### 8.4 Performance baseline
 
 - API pagination limits and database indexes must prevent unbounded catalog or bid-history queries.
-- Bid placement should meet a documented service-level target under expected peak concurrency; the target must be established before production launch through load testing.
+- Bid placement, sign-in, and token refresh must meet documented service-level targets under expected peak concurrency; the targets must be established before production launch through load testing.
 - Auction-closing delay and outbox-delivery delay must be measured and alerted on against configured operational thresholds.
+
+### 8.5 Service levels
+
+- Every user-facing subsystem has documented service-level indicators and objectives before production launch. The targets live in operational documents under `docs/` (for example `docs/M2_ONBOARDING_SLO.md`), are reviewed after the first 30 days of production traffic, and are revised there without changing this document.
+- Each subsystem's indicators cover at least: availability of its API routes, server-side latency per endpoint, lag of its asynchronous steps (email, events, scheduled jobs), and the correctness invariants of section 9 as zero-tolerance signals.
+- Indicators are measured server-side in the application and are independent of the web client's hosting.
+- Alerting is based on error-budget burn rate over multiple windows, with minimum-traffic guards so that low traffic does not page. Correctness-invariant signals, readiness failures, and outbox backlog alert without a traffic guard.
+- A written error-budget policy states what happens when a subsystem's budget is exhausted.
+- Service levels are set for the deployed topology; a target that the current instance count or database tier cannot honour is not adopted until the topology changes.
 
 ## 9. Acceptance and Test Requirements
 
 ### 9.1 User onboarding
 
-- Registration creates a pending account and does not allow bidding before verification.
-- A verification token works once and fails after use or expiry.
+- A first authenticated request from an email-and-password identity creates a `PENDING_VERIFICATION` account that cannot bid; the same request from a Google identity with a verified email creates a `PENDING_CREDIT_ELIGIBILITY` account.
+- A Google sign-in whose verified email matches an existing account links to it; no second account exists afterwards.
+- An access token whose `email_verified` claim is false is refused for bidding and publishing even when the token is valid.
 - Email verification moves the account to credit-eligibility pending; a passing assessment activates it, and a failing assessment prevents bidding and listing publication.
 - Credit-eligibility inputs are evaluated with the configured policy version and never appear in application logs.
-- Token refresh rotates the refresh token; reuse of a rotated token invalidates the affected token family.
-- A suspended account cannot refresh, bid, publish, or update fulfillment.
+- Against a provider created from the versioned configuration: a verification link works once and fails after use or expiry; refresh rotates the token and reuse of a rotated token ends the session; password policy and brute-force protection reject weak passwords and repeated failures.
+- A suspended account cannot sign in or refresh at the provider, and an access token issued before suspension is rejected by the application for bidding, publishing, and fulfillment updates.
+- Tokens signed by any key other than the configured provider's, or with a wrong issuer or audience, are rejected.
 - Completing required seller fields enables listing publication without creating a second account.
 
 ### 9.2 Product catalog
