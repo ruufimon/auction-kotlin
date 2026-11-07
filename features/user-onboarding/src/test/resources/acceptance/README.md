@@ -45,3 +45,19 @@ Not wired yet. The intended harness, to be added with the first M2 API pull requ
 
 Until then these files are the acceptance criteria reviewers check pull requests
 against.
+
+## Testing with and without Keycloak
+
+Keycloak is bypassed wherever the subject under test is the application, and required only
+where the subject is the realm configuration itself.
+
+| Layer | Keycloak? | How |
+|---|---|---|
+| Domain unit tests | No | The account aggregate has no identity-provider dependency. |
+| Ktor route tests (bootstrap, authorization by state, profile, assessment, seller, token-rejection cases) | No | The validator trusts a JWKS served by the test itself; tests mint tokens with the claims each scenario needs (`sub`, `email`, `email_verified`, `aud`, `exp`). Wrong-key, wrong-issuer, wrong-audience and expired cases use a second test key or altered claims. |
+| Provider scenarios (rotation, reuse, brute force, verification links, password policy, Google linking) | **Yes** | Testcontainers Keycloak importing `deploy/keycloak/realm-gavel.json`; a mock OIDC server stands in for Google in the test realm. Tagged `@provider`; run on realm changes and nightly, not on every commit. |
+| Local development | Yes (compose) | Real Keycloak in `docker-compose.dev.yml` with the versioned realm and seeded users. Optional non-production-only extra trusted JWKS file for fast loops; the app refuses to start with it set in production. |
+| Browser E2E (#42) | Yes | Log in once through the themed Keycloak page with a seeded password user; reuse the browser storage state. Never a real Google account. |
+
+Rules: no bypass flag in production code paths (the only seam is which signing keys are trusted), and
+every minted test token still passes through the real validator.
