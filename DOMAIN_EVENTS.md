@@ -16,9 +16,10 @@ data class EventEnvelope(
     val eventId: UUID,              // Unique event identifier
     val type: String,               // Event type (e.g., "catalog.auction-sold")
     val payloadVersion: Int,        // Schema version for breaking changes
-    val aggregateId: String,        // The entity this event affects
+    val aggregateType: String,      // e.g. "account", "listing"
+    val aggregateId: UUID,          // Internal id of the entity; public ids travel in the payload
     val occurredAt: Instant,        // When the event occurred (UTC)
-    val correlationId: String,      // Trace across distributed operations
+    val correlationId: UUID?,       // Trace across distributed operations (the request's X-Request-Id)
     val payload: String,            // JSON-encoded event data
 )
 ```
@@ -28,8 +29,14 @@ Features publish events through a single interface:
 
 ```kotlin
 interface EventPublisher {
-    fun publish(type: String, payloadVersion: Int, aggregateId: String, payload: String)
+    fun publish(type: String, payloadVersion: Int, aggregateType: String, aggregateId: UUID, payload: String, correlationId: UUID? = null)
 }
+```
+
+Implementation: `com.gavel.kernel.events.OutboxEventPublisher` inserts into `event_outbox` through the
+caller's Exposed transaction (`kernel/`).
+
+```kotlin
 ```
 
 **Key property:** Publishing is synchronous and happens within the same database transaction as the state change. This ensures atomicity: the event and the state change both commit or both roll back.

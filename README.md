@@ -33,7 +33,7 @@ navigable and modifiable by AI agents:
 This codebase was restructured to align with AFA principles:
 
 **Backend (Kotlin/Gradle):**
-- `bank-api/` — Source of truth for domain types (single writer)
+- `kernel/` — Shared events, audit log, API error model and Keycloak token validation (single writer)
 - `features/` — Four feature modules:
   - `features/user-onboarding/`
   - `features/product-catalog/`
@@ -55,7 +55,7 @@ See [AGENT.md](AGENT.md) for the complete AFA specification and
 
 ```text
 .
-├── bank-api/                    Source of truth for domain types
+├── kernel/                      Shared events, audit, errors, token validation
 ├── features/                    Business logic modules
 │   ├── user-onboarding/
 │   ├── product-catalog/
@@ -74,7 +74,7 @@ See [AGENT.md](AGENT.md) for the complete AFA specification and
 ```
 
 The backend is organized by feature under `features/`, with shared domain types
-in `bank-api/`. The frontend is grouped by business domain under `web/features/`.
+in `kernel/`. The frontend is grouped by business domain under `web/features/`.
 Both follow AFA principles for clear, navigable architecture.
 
 ## Frontend restructuring

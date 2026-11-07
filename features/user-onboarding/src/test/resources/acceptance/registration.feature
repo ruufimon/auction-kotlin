@@ -38,12 +38,14 @@ Feature: Registration and first sign-in
     Then both return 200 with the same "userId"
     And exactly one account row exists for the subject
 
+  @provider
   Scenario: Provider rejects duplicate emails
     Given a Keycloak user exists for "mina@example.com"
     When a visitor registers at Keycloak with "  Mina@Example.COM " and a valid password
     Then Keycloak refuses with its duplicate-email error
     And no second Keycloak user or application account is created
 
+  @provider
   Scenario Outline: Provider rejects weak passwords
     When a visitor registers at Keycloak with email "mina@example.com" and password "<password>"
     Then Keycloak refuses with its password-policy error
@@ -57,6 +59,7 @@ Feature: Registration and first sign-in
     Then the application schema has no password column and no refresh-token table
     And the application logs for a registration contain no password value
 
+  @cross-feature
   Scenario: A pending account cannot bid
     Given "mina@example.com" bootstrapped in "PENDING_VERIFICATION"
     When that user attempts to place a bid on an active auction

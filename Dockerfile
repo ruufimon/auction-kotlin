@@ -6,6 +6,7 @@ WORKDIR /workspace
 # independently of source changes.
 COPY gradlew settings.gradle.kts build.gradle.kts gradle.properties ./
 COPY gradle ./gradle
+COPY kernel/build.gradle.kts ./kernel/
 COPY app/build.gradle.kts ./app/
 COPY features/user-onboarding/build.gradle.kts ./features/user-onboarding/
 COPY features/product-catalog/build.gradle.kts ./features/product-catalog/
@@ -13,6 +14,7 @@ COPY features/bidding/build.gradle.kts ./features/bidding/
 COPY features/settlement/build.gradle.kts ./features/settlement/
 RUN ./gradlew --no-daemon :app:dependencies > /dev/null
 
+COPY kernel/src ./kernel/src
 COPY app/src ./app/src
 COPY features ./features
 RUN ./gradlew --no-daemon :app:installDist -x test

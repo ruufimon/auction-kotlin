@@ -21,6 +21,7 @@ Feature: Sign in and token validation
     Then Keycloak issues tokens for the same subject
     And reading their own profile returns their existing "userId"
 
+  @provider
   Scenario: A wrong password is rejected by the provider
     When someone signs in at Keycloak with "mina@example.com" and a wrong password
     Then Keycloak returns its invalid-credentials error
@@ -38,6 +39,7 @@ Feature: Sign in and token validation
       | with audience other than "gavel-api"         | TOKEN_WRONG_AUDIENCE |
       | expired 16 minutes ago                       | TOKEN_EXPIRED        |
 
+  @cross-feature
   Scenario Outline: A valid token does not override application account state
     Given "mina@example.com" holds a valid access token and is in application state "<state>"
     When they attempt to place a bid
@@ -56,11 +58,13 @@ Feature: Sign in and token validation
     Then the response status is 200
     And "accountState" is "PENDING_CREDIT_ELIGIBILITY" and "eligibilityReason" is "BELOW_MINIMUM_SCORE"
 
+  @provider
   Scenario: Repeated failed sign-ins are locked out by the provider
     When 10 sign-in attempts with a wrong password are made within one minute
     Then Keycloak's brute-force protection temporarily locks the account
     And Keycloak's event log records LOGIN_ERROR events with the lockout reason
 
+  @provider
   Scenario: JWKS rotation is handled without downtime
     Given the realm rotates its signing key
     When a token signed by the new key arrives

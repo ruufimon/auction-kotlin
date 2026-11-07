@@ -30,21 +30,29 @@ marked "(provider)" exercise the versioned realm through a Testcontainers Keyclo
 
 ## Running them
 
-Not wired yet. The intended harness, to be added with the first M2 API pull request:
+```bash
+./gradlew :features:user-onboarding:test --tests '*AcceptanceSuite*'
+# one scenario, with step output
+./gradlew :features:user-onboarding:test --tests '*AcceptanceSuite*' \
+    -Dcucumber.filter.name="Concurrent edits are detected" -Dcucumber.plugin=pretty
+```
 
-1. Add `io.cucumber:cucumber-java` and `io.cucumber:cucumber-junit-platform-engine`
-   to the `testing` bundle in `gradle/libs.versions.toml`.
-2. Step definitions live in `features/user-onboarding/src/test/kotlin/.../acceptance/`
-   and drive the Ktor app with `testApplication` against the Testcontainers
-   PostgreSQL fixture from M1-8 (#16).
-3. Keycloak runs as a Testcontainers container importing `deploy/keycloak/realm-gavel.json`;
-   mail is captured with a MailHog/Mailpit container as the realm's SMTP; time is controlled
-   through an injectable `Clock` in the app and token lifespans in a test realm override.
-4. `@ui` scenarios are excluded from `./gradlew test` and run by the browser E2E
-   suite (#42) once the web app exists.
+Harness (`src/test/kotlin/com/gavel/onboarding/acceptance/`):
 
-Until then these files are the acceptance criteria reviewers check pull requests
-against.
+- `AcceptanceSuite` runs Cucumber on the JUnit platform with the tag filter
+  `not @ui and not @provider and not @cross-feature and not @wip`.
+- `World` holds per-scenario state: a `TestIdentityProvider` (kernel test fixture) that mints
+  real RS256 tokens the application validates through its normal validator, a `TestApplication`
+  built from `TestApp.kt` (kernel plugins + the onboarding feature), a mutable clock, and the
+  Testcontainers PostgreSQL from `TestDatabase` (truncated before each scenario).
+- Steps drive only the HTTP API (`/api/v1/me`, `/api/v1/profile/{userId}`, `/internal/accounts/...`).
+  Fixtures such as "mina is ACTIVE" are built by calling those endpoints, never by writing rows.
+- "Given a Keycloak realm ..." steps are no-ops in this profile: realm behaviour is asserted by
+  `@provider` scenarios, which run against a Testcontainers Keycloak once #19 lands.
+
+Tags: `@provider` (needs the real realm), `@cross-feature` (needs bidding/catalog/settlement
+endpoints from M3–M5), `@ui` (browser suite #42), `@wip` (specified, not implemented: remove the
+tag as the first step of implementing it).
 
 ## Testing with and without Keycloak
 

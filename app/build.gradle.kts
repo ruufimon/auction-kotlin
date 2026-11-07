@@ -1,5 +1,6 @@
 plugins {
     alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.kotlin.serialization)
     application
 }
 
@@ -19,9 +20,9 @@ dependencies {
     implementation(libs.bundles.observability)
     implementation(libs.ktor.server.call.logging)
     implementation(libs.kotlinx.serialization.json)
-    implementation(libs.jwt)
 
-    // Feature modules (app orchestrates, features are independent)
+    // Shared kernel and feature modules (app orchestrates, features are independent)
+    implementation(project(":kernel"))
     implementation(project(":features:user-onboarding"))
     implementation(project(":features:product-catalog"))
     implementation(project(":features:bidding"))
@@ -29,6 +30,7 @@ dependencies {
 
     testImplementation(libs.bundles.testing)
     testImplementation(libs.ktor.server.test.host)
+    testImplementation(testFixtures(project(":kernel")))
     testRuntimeOnly(libs.junit.engine)
 }
 

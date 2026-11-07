@@ -22,15 +22,15 @@ The Gradle build enforces these boundaries:
 
 | Forbidden | Error | Fix |
 |-----------|-------|-----|
-| Feature A imports Feature B | `✗ :features:a depends on :features:b` | Share through `bank-api/` or domain events |
-| App framework imports features | `✗ :bank-api depends on :features:…` | Move to a feature |
+| Feature A imports Feature B | `✗ :features:a depends on :features:b` | Share through `kernel/` or domain events |
+| Kernel imports features | `✗ :kernel depends on :features:…` | Move to a feature |
 | Feature imports external server | `✗ :features:x depends on :host-server` | Reach server via events/HTTP |
 | Circular event dependencies | `✗ :features:a → :features:b → :features:a` | Redesign event flow (A never listens to B's response events) |
 
 If your change breaks the build, the error message tells you the supported path.
 
 ### 3. Every durable value has one obvious writer
-**Bank state is written only by bank-api; features send commands and listen to events.**
+**Shared state (event stream, audit log) is written only through the kernel; features own their tables and listen to events.**
 
 Single writer ensures:
 - No race conditions or inconsistent views
@@ -42,7 +42,7 @@ Single writer ensures:
 | User account | `features/user-onboarding/` | All features (via events) |
 | Auction state | `features/product-catalog/` | Settlement, Bidding (via events) |
 | Order | `features/settlement/` | Catalog, Fulfillment (via events) |
-| Event stream | `bank-api/` (EventPublisher) | All features (EventHandler) |
+| Event stream, audit log | `kernel/` (EventPublisher, AuditLog) | All features (EventHandler) |
 
 Events are published synchronously within the same transaction as the state change, ensuring atomicity.
 
@@ -73,10 +73,10 @@ features/my-feature/
 The feature is automatically discovered by Gradle. No registration needed.
 
 ### 5. Exceptions are narrow, explicit, and reviewed as architecture changes
-**Changing bank-api, Gradle boundaries, or event definitions requires a PR discussion.**
+**Changing the kernel, Gradle boundaries, or event definitions requires a PR discussion.**
 
 Rule 5 changes:
-- Adding to `bank-api/` (shared interfaces, EventPublisher, EventHandler)
+- Adding to `kernel/` (shared interfaces: EventPublisher, EventHandler, AuditLog, ApiError, token validation)
 - Modifying Gradle build rules or adding new module boundaries
 - Introducing new event types or changing event structure
 - Adding forbidden dependencies (with explicit exceptions in build.gradle)
@@ -89,7 +89,7 @@ These must be documented in your PR as architectural decisions.
 Events are the only safe inter-feature communication mechanism:
 
 #### How it works
-1. Feature A publishes an event: `publisher.publish(type, payloadVersion, aggregateId, payload)`
+1. Feature A publishes an event: `publisher.publish(type, payloadVersion, aggregateType, aggregateId, payload)`
 2. Feature B implements an EventHandler to consume it
 3. Event has a name and version for idempotency and schema evolution
 4. Handlers run synchronously within the same transaction
@@ -97,9 +97,9 @@ Events are the only safe inter-feature communication mechanism:
 
 #### Event Structure
 ```kotlin
-// bank-api/Events.kt (single writer)
+// kernel/src/main/kotlin/com/gavel/kernel/events/Events.kt (single writer)
 interface EventPublisher {
-    fun publish(type: String, payloadVersion: Int, aggregateId: String, payload: String)
+    fun publish(type: String, payloadVersion: Int, aggregateType: String, aggregateId: UUID, payload: String, correlationId: UUID? = null)
 }
 
 interface EventHandler {
@@ -114,9 +114,10 @@ data class EventEnvelope(
     val eventId: UUID,
     val type: String,            // e.g., "catalog.auction-sold"
     val payloadVersion: Int,
-    val aggregateId: String,
+    val aggregateType: String,   // e.g., "account", "listing"
+    val aggregateId: UUID,       // the row's internal id; public ids travel in the payload
     val occurredAt: Instant,
-    val correlationId: String,
+    val correlationId: UUID?,
     val payload: String          // JSON
 )
 ```
@@ -186,9 +187,9 @@ Same event replayed twice = same result (no duplicate work).
 | Create a new auction | Feature in `features/product-catalog/` | Edit other features |
 | Handle user registration | Feature in `features/user-onboarding/` | Keep own user copy |
 | Process a payment | Feature in `features/settlement/` | Direct database access |
-| Publish an event | `publisher.publish(type, version, id, json)` in `bank-api/Events.kt` | Hardcoded event dispatch |
+| Publish an event | `publisher.publish(type, version, aggregateType, id, json)` from `kernel` inside the state-changing transaction | Hardcoded event dispatch |
 | Consume an event | Implement `EventHandler` in `subscribers/` | Direct feature import |
-| Share code between features | Add to `bank-api/` (Rule 5) | Depend on another feature |
+| Share code between features | Add to `kernel/` (Rule 5) | Depend on another feature |
 | Store event log | Database outbox table (transactional outbox pattern) | In-memory queue |
 
 ## Recipe: Add a Feature (No Other File Changes)
@@ -255,7 +256,7 @@ Each feature owns its database migrations, packaged in its Gradle module. Migrat
 
 | Feature | Migration Location |
 |---------|-------------------|
-| Shared | `app/src/main/resources/db/migration/shared/` |
+| Shared (outbox, audit log) | `kernel/src/main/resources/db/migration/shared/` |
 | User-Onboarding | `features/user-onboarding/src/main/resources/db/migration/onboarding/` |
 | Product-Catalog | `features/product-catalog/src/main/resources/db/migration/catalog/` |
 | Bidding | `features/bidding/src/main/resources/db/migration/bidding/` |
@@ -281,6 +282,9 @@ Ownership is expressed by **folder**, not by file prefix. The locations are list
 Flyway sorts all migrations from all locations by version and applies them in that order. When a migration depends on another feature's table (e.g. a foreign key to `users`), its timestamp must be later.
 
 Never edit a migration that has been applied to a shared environment (staging/production); add a new one instead.
+`V202611071300__accounts_keycloak_catchup.sql` drops the M1 credential and token tables: no environment had
+applied them (every production deploy before it failed at startup), so a drop was safe. After the first
+successful production deploy, that option is gone.
 
 ### Adding a New Migration
 
@@ -337,7 +341,7 @@ psql -h localhost -U auction -d auction_db -c 'SELECT version, description FROM 
 | Message | Meaning | Fix |
 |---------|---------|-----|
 | `✗ :features:a depends on :features:b` | Features never import each other | Use domain events for communication |
-| `✗ :features:x depends on :bank-api` | (OK, features depend on bank-api for event interfaces) | This is allowed |
+| `:features:x depends on :kernel` | OK: features depend on the kernel for events, audit, errors and token validation | This is allowed |
 | `✗ Circular dependency: :features:a → :features:b → :features:a` | Event loop created | Redesign: don't have A listen to B's response events |
 | `✗ :app depends on :features:…` | Framework code importing application | Move logic to a feature |
 | `✗ No EventHandler registered for type X` | Event type not consumed | Implement handler or check event type name |
@@ -351,7 +355,20 @@ psql -h localhost -U auction -d auction_db -c 'SELECT version, description FROM 
 ./gradlew :web:build              # Build Next.js frontend
 ./gradlew test                    # Run all tests
 ./gradlew :features:product-catalog:test  # Test one feature
+
+# Acceptance scenarios (Cucumber, Testcontainers PostgreSQL, no Keycloak)
+./gradlew :features:user-onboarding:test --tests '*AcceptanceSuite*'
+./gradlew :features:user-onboarding:test --tests '*AcceptanceSuite*' \
+    -Dcucumber.filter.name="Reading your own profile" -Dcucumber.plugin=pretty
 ```
+
+### Acceptance-test driven development (ATDD)
+
+Feature files under `features/<feature>/src/test/resources/acceptance/` are the executable
+specification. The loop: untag (`@wip`) a scenario, run it red, TDD the aggregate, repository and
+route until it passes, commit. Tags `@provider` (needs the real Keycloak realm), `@cross-feature`
+(needs another milestone's endpoints) and `@ui` (browser suite) are excluded from `./gradlew test`.
+Step definitions drive the HTTP API only; nothing reaches into the domain to set up state.
 
 ## Key Files
 
@@ -362,7 +379,7 @@ psql -h localhost -U auction -d auction_db -c 'SELECT version, description FROM 
 | [web/RESTRUCTURING.md](web/RESTRUCTURING.md) | Frontend restructuring for AFA compliance |
 | `requirements.md` | Business requirements and compliance |
 | `features/*/DomainEvents.md` | Event documentation per feature |
-| `bank-api/src/main/kotlin/com/gavel/kernel/Events.kt` | Core event interfaces (single writer) |
+| `kernel/src/main/kotlin/com/gavel/kernel/` | Shared events, audit, API errors, Keycloak token validation (single writer) |
 
 ## AFA Design Principles
 

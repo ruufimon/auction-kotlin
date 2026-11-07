@@ -26,6 +26,7 @@ Feature: Credit-eligibility assessment
     And the account state is still "PENDING_CREDIT_ELIGIBILITY"
     And the stored assessment has outcome "NOT_ELIGIBLE" and policy version "test-policy-1"
 
+  @cross-feature
   Scenario: A failed account cannot bid or publish
     Given their assessment failed
     When they attempt to place a bid

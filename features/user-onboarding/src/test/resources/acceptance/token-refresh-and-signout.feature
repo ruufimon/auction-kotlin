@@ -7,11 +7,13 @@ Feature: Token refresh and sign-out
     Given a Keycloak realm created from deploy/keycloak/realm-gavel.json with "Revoke Refresh Token" on and max reuse 0
     And "mina@example.com" is ACTIVE and signed in, holding refresh token "R1"
 
+  @provider
   Scenario: Refresh rotates the token
     When "R1" is presented to Keycloak's token endpoint
     Then a new access token and a new refresh token "R2" are issued
     And Keycloak's event log records REFRESH_TOKEN
 
+  @provider
   Scenario: A rotated token cannot be reused, and reuse ends the session
     Given "R1" was rotated into "R2"
     When "R1" is presented again
@@ -19,16 +21,19 @@ Feature: Token refresh and sign-out
     And the session is ended so "R2" is also rejected
     And Keycloak's event log records REFRESH_TOKEN_ERROR
 
+  @provider
   Scenario: An expired refresh token is rejected
     Given "R1" is older than the refresh lifespan
     When "R1" is presented
     Then Keycloak returns an invalid_grant error
 
+  @provider
   Scenario: Sign-out ends the session
     When the web app calls Keycloak's end-session endpoint with the session's id token
     Then "R1" is rejected on the next refresh
     And Keycloak's event log records LOGOUT
 
+  @provider
   Scenario: Sign-out everywhere
     Given the user also has a session on another device
     When the user chooses "sign out all devices" (Keycloak account console or admin logout)
