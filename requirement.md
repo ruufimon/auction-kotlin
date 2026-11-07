@@ -296,13 +296,24 @@ Expected event flows include:
 - Emit structured logs containing timestamp, severity, service version, module, correlation ID, and safe entity identifiers.
 - Propagate correlation IDs through HTTP requests, domain events, and external-provider calls.
 - Record metrics for request latency and errors, bid acceptance and rejection, auction closure lag, payment outcomes, outbox backlog, retries, and dead-lettered events.
+- Record onboarding and authentication metrics: registration, verification, sign-in, refresh, assessment, and seller-enablement outcomes by stable code; refresh-token rotation and reuse; verification-email dispatch delay; credit-assessment outcomes by policy version; rate-limit activations.
+- Metric names, labels, and log fields never carry personal data, credentials, tokens, or credit-assessment inputs; stable outcome codes and policy versions are permitted.
 - Audit account state changes, listing publication and cancellation, accepted bids, auction closure, payment transitions, and fulfillment transitions.
 
 ### 8.4 Performance baseline
 
 - API pagination limits and database indexes must prevent unbounded catalog or bid-history queries.
-- Bid placement should meet a documented service-level target under expected peak concurrency; the target must be established before production launch through load testing.
+- Bid placement, sign-in, and token refresh must meet documented service-level targets under expected peak concurrency; the targets must be established before production launch through load testing.
 - Auction-closing delay and outbox-delivery delay must be measured and alerted on against configured operational thresholds.
+
+### 8.5 Service levels
+
+- Every user-facing subsystem has documented service-level indicators and objectives before production launch. The targets live in operational documents under `docs/` (for example `docs/M2_ONBOARDING_SLO.md`), are reviewed after the first 30 days of production traffic, and are revised there without changing this document.
+- Each subsystem's indicators cover at least: availability of its API routes, server-side latency per endpoint, lag of its asynchronous steps (email, events, scheduled jobs), and the correctness invariants of section 9 as zero-tolerance signals.
+- Indicators are measured server-side in the application and are independent of the web client's hosting.
+- Alerting is based on error-budget burn rate over multiple windows, with minimum-traffic guards so that low traffic does not page. Correctness-invariant signals, readiness failures, and outbox backlog alert without a traffic guard.
+- A written error-budget policy states what happens when a subsystem's budget is exhausted.
+- Service levels are set for the deployed topology; a target that the current instance count or database tier cannot honour is not adopted until the topology changes.
 
 ## 9. Acceptance and Test Requirements
 
