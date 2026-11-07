@@ -21,10 +21,10 @@ import java.util.UUID
 
 private val log = LoggerFactory.getLogger("com.gavel.kernel.web")
 
-/** JSON settings shared by every endpoint: tolerant of unknown keys, omits nulls. */
+/** JSON settings shared by every endpoint: tolerant of unknown keys; resources always carry every field. */
 val ApiJson: Json = Json {
     ignoreUnknownKeys = true
-    explicitNulls = false
+    explicitNulls = true
     encodeDefaults = true
 }
 

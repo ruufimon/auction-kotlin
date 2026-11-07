@@ -155,3 +155,8 @@ class AccessTokenValidator(
         )
     }
 }
+
+/** Trusts no key at all: every bearer token is rejected. For applications started without a realm. */
+object NoKeysJwkProvider : JwkProvider {
+    override fun get(keyId: String?): com.auth0.jwk.Jwk = throw com.auth0.jwk.SigningKeyNotFoundException("No identity provider configured", null)
+}

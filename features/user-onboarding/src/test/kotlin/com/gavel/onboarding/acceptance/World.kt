@@ -25,6 +25,7 @@ import io.ktor.server.testing.TestApplication
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import org.slf4j.LoggerFactory
 import java.time.Clock
@@ -57,6 +58,8 @@ class World {
     /** Scenario labels such as "usr_mina" mapped to the real opaque user ids. */
     val userIdAliases = mutableMapOf<String, String>()
     val tokensByEmail = mutableMapOf<String, String>()
+    val userIdByEmail = mutableMapOf<String, String>()
+    val emailByAlias = mutableMapOf<String, String>()
 
     /** Secrets the scenario typed at the provider; must never reach application logs. */
     val secretsTyped = mutableListOf<String>()
@@ -90,6 +93,8 @@ class World {
 
     fun call(method: HttpMethod, path: String, token: String? = currentToken, body: String? = null, configure: HttpRequestBuilder.() -> Unit = {}): HttpResponse =
         runBlocking {
+            // Distinct timestamps per request keep outbox and audit ordering unambiguous.
+            clock.advance(Duration.ofSeconds(1))
             val response = client.request(path) {
                 this.method = method
                 if (token != null) header(HttpHeaders.Authorization, "Bearer $token")
@@ -140,3 +145,78 @@ class RecordingIdentityProviderAdmin : IdentityProviderAdmin {
         enabled += subject
     }
 }
+
+// ---- Scenario fixtures shared by several feature files ----
+
+/** Puts an account for [email] into [state] through the public API, as a real client would. */
+fun World.ensureAccount(email: String, state: String, label: String? = null): String {
+    val normalized = email.trim().lowercase()
+    val existing = userIdByEmail[normalized]
+    if (existing != null) {
+        // Idempotent: a scenario may describe the same account twice.
+        signInAs(normalized)
+        call(HttpMethod.Get, "/api/v1/profile/$existing")
+        val current = lastJson["accountState"]!!.jsonPrimitive.content
+        when {
+            current == state -> Unit
+            state == "SUSPENDED" && current == "ACTIVE" -> {
+                operatorCall(HttpMethod.Post, "/internal/accounts/$existing/suspend", """{"reason":"FRAUD_REVIEW"}""")
+                check(lastResponse?.status?.value == 200) { "suspension failed: $lastBodyText" }
+            }
+            else -> error("fixture cannot move $normalized from $current to $state")
+        }
+        if (label != null) { userIdAliases[label] = existing; emailByAlias[label] = normalized }
+        return existing
+    }
+    when (state) {
+        "PENDING_VERIFICATION" -> {
+            idp.registerPasswordUser(normalized)
+            signInAs(normalized)
+            me()
+        }
+        "PENDING_CREDIT_ELIGIBILITY" -> {
+            idp.signInWithGoogle(normalized)
+            signInAs(normalized)
+            me()
+        }
+        "ACTIVE" -> {
+            ensureAccount(normalized, "PENDING_CREDIT_ELIGIBILITY")
+            val id = userIdOf(normalized)
+            putProfile(id, """{"assessment":{"age":34,"annualIncome":6800000,"netWealth":1500000}}""")
+            check(lastResponse?.status?.value == 200) { "activation failed: $lastBodyText" }
+        }
+        "SUSPENDED" -> {
+            ensureAccount(normalized, "ACTIVE")
+            operatorCall(HttpMethod.Post, "/internal/accounts/${userIdOf(normalized)}/suspend", """{"reason":"FRAUD_REVIEW"}""")
+            check(lastResponse?.status?.value == 200) { "suspension failed: $lastBodyText" }
+        }
+        else -> error("unknown state $state")
+    }
+    val id = userIdOf(normalized)
+    if (label != null) {
+        userIdAliases[label] = id
+        emailByAlias[label] = normalized
+    }
+    return id
+}
+
+fun World.me(): JsonObject {
+    call(HttpMethod.Get, "/api/v1/me")
+    check(lastResponse?.status?.value == 200) { "bootstrap failed: $lastBodyText" }
+    val json = lastJson
+    userIdByEmail[currentEmail!!] = json["userId"]!!.jsonPrimitive.content
+    return json
+}
+
+fun World.userIdOf(email: String): String = userIdByEmail[email.trim().lowercase()] ?: error("no account bootstrapped for $email")
+
+fun World.tokenForAlias(label: String): String {
+    val email = emailByAlias[label] ?: error("unknown user label $label")
+    return tokensByEmail[email] ?: idp.tokenFor(email)
+}
+
+fun World.putProfile(userId: String, body: String, token: String? = currentToken): HttpResponse =
+    call(HttpMethod.Put, "/api/v1/profile/$userId", token = token, body = body)
+
+fun World.operatorCall(method: HttpMethod, path: String, body: String? = null): HttpResponse =
+    call(method, path, token = null, body = body) { header("X-Internal-Token", "operator-secret") }

@@ -105,8 +105,8 @@ class RegistrationSteps(private val world: World) {
     @Then("no role or account-type choice was offered")
     fun noRoleChoice() {
         // Bootstrap is a GET with no body: the client cannot send a role, and the account carries none.
-        assertNull(world.lastJson["role"])
-        assertNull(world.lastJson["accountType"])
+        assertNull(world.lastJson["role"]?.jsonPrimitive?.contentOrNull)
+        assertNull(world.lastJson["accountType"]?.jsonPrimitive?.contentOrNull)
     }
 
     @Then("the created account has {string} false")

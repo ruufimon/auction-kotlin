@@ -8,6 +8,8 @@ import io.ktor.http.HttpMethod
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -54,6 +56,9 @@ class CommonSteps(private val world: World) {
     @When("they call GET \\/api\\/v1\\/me")
     fun callsMe() {
         world.call(HttpMethod.Get, "/api/v1/me")
+        if (world.lastResponse?.status?.value == 200) {
+            world.userIdByEmail[world.currentEmail!!] = world.lastJson["userId"]!!.jsonPrimitive.content
+        }
     }
 
     // --- Response assertions ---
@@ -105,6 +110,57 @@ class CommonSteps(private val world: World) {
     fun outboxHas(eventType: String) {
         val count = TestDatabase.count("SELECT count(*) FROM event_outbox WHERE event_type = '$eventType'")
         assertTrue(count >= 1, "expected an outbox row of type $eventType")
+    }
+
+    @Then("the account state is {string}")
+    @Then("the account state is still {string}")
+    fun accountStateIs(state: String) {
+        val email = world.currentEmail!!
+        world.call(HttpMethod.Get, "/api/v1/profile/${world.userIdOf(email)}", token = world.tokensByEmail[email])
+        assertEquals(200, world.lastResponse?.status?.value, world.lastBodyText)
+        assertEquals(state, world.lastJson["accountState"]?.jsonPrimitive?.contentOrNull)
+    }
+
+    @Then("^the response contains ([A-Za-z]+(?:, [A-Za-z]+)*)$")
+    fun responseContainsFields(list: String) {
+        val missing = list.split(",").map { it.trim() }.filter { it !in world.lastJson.keys }
+        assertTrue(missing.isEmpty(), "missing fields $missing in ${world.lastBodyText}")
+    }
+
+    @Then("the response contains {string}, {string}, {string} and {string}")
+    fun responseContainsQuoted(a: String, b: String, c: String, d: String) {
+        responseContainsFields(listOf(a, b, c, d).joinToString(", "))
+    }
+
+    @Then("the response contains no password hash, token, age, income, wealth or score")
+    @Then("the response contains no age, income, wealth or numeric score")
+    fun responseHasNoSensitiveFields() {
+        val forbidden = setOf("password", "passwordHash", "token", "accessToken", "refreshToken", "age", "income", "annualIncome", "wealth", "netWealth", "score")
+        val present = world.lastJson.keys.filter { key -> forbidden.any { it.equals(key, ignoreCase = true) } }
+        assertTrue(present.isEmpty(), "sensitive fields in response: $present")
+    }
+
+    @Then("the error details name the field {string}")
+    fun errorDetailsNameField(field: String) {
+        val fields = world.lastJson["details"]?.jsonArray?.map { it.jsonObject["field"]?.jsonPrimitive?.contentOrNull } ?: emptyList()
+        assertTrue(field in fields, "expected a detail for $field in ${world.lastBodyText}")
+    }
+
+    @Then("the error details include {string} = {string}")
+    fun errorDetailsInclude(field: String, value: String) {
+        val match = world.lastJson["details"]?.jsonArray?.any { d ->
+            val o = d.jsonObject
+            o["field"]?.jsonPrimitive?.contentOrNull == field &&
+                (o["code"]?.jsonPrimitive?.contentOrNull == value || o["value"]?.jsonPrimitive?.contentOrNull == value)
+        } ?: false
+        assertTrue(match, "expected detail $field = $value in ${world.lastBodyText}")
+    }
+
+    @Then("{string} is still false")
+    fun fieldStillFalse(field: String) {
+        val email = world.currentEmail!!
+        world.call(HttpMethod.Get, "/api/v1/profile/${world.userIdOf(email)}", token = world.tokensByEmail[email])
+        assertEquals(false, world.lastJson[field]?.jsonPrimitive?.booleanOrNull, world.lastBodyText)
     }
 
     @Then("exactly one application account exists for {string}")

@@ -1,4 +1,3 @@
-@wip
 @USR-008 @USR-009 @issue-24 @api
 Feature: Seller enablement
   The same account becomes a seller once every configured seller-profile
@@ -54,11 +53,13 @@ Feature: Seller enablement
     When "mina@example.com" calls enable-seller on "sam@example.com"'s profile
     Then the response status is 403
 
+  @cross-feature
   Scenario: Seller enablement unlocks listing publication
     Given "mina@example.com" enabled selling
     When they create and publish a valid listing
     Then publication succeeds
 
+  @cross-feature
   Scenario: A seller still bids as a buyer with the same account
     Given "mina@example.com" enabled selling
     When they place a bid on another seller's active auction
@@ -75,7 +76,7 @@ Feature: Seller enablement
     When a visitor registers, verifies their email, passes the credit-eligibility assessment, completes the seller profile and origin address, and calls enable-seller
     Then each step succeeds in order
     And the final profile shows accountState "ACTIVE" and sellerEnabled true
-    And the outbox holds, in order, user-registered, email-verified, credit-eligibility-assessed, profile-updated, seller-enabled
+    And the outbox holds, in order, account-created, email-verified, credit-eligibility-assessed, profile-updated, seller-enabled
 
   @ui @issue-32
   Scenario: The seller page shows readiness and keeps enable disabled until complete

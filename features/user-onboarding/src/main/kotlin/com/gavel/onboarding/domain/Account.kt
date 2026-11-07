@@ -101,7 +101,9 @@ data class Account(
         return if (next == this) AccountChange(this, emptyList()) else AccountChange(next.touched(now), events)
     }
 
+    /** Suspended accounts stay readable but not editable (USR-010; design canvas screen 6). */
     fun updateProfile(patch: ProfilePatch, now: Instant): AccountChange {
+        if (state == AccountState.SUSPENDED) throw AccountError.NotAllowedInState(state, "profile update")
         val errors = validateProfile(patch)
         if (errors.isNotEmpty()) throw AccountError.ValidationFailed(errors)
         if (patch.isEmpty) return AccountChange(this, emptyList())

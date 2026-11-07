@@ -263,6 +263,13 @@ class AccountTest {
         }
 
         @Test
+        fun `a suspended account cannot change its profile`() {
+            val suspended = active().suspend("FRAUD_REVIEW", t0).account
+            val error = assertFailsWith<AccountError.NotAllowedInState> { suspended.updateProfile(ProfilePatch(displayName = "New"), t0) }
+            assertEquals("ACCOUNT_SUSPENDED", error.code)
+        }
+
+        @Test
         fun `reactivation requires verified email and passed eligibility`() {
             val suspendedPending = pendingEligibility().suspend("x", t0).account
             val error = assertFailsWith<AccountError.ReactivationPreconditionsNotMet> { suspendedPending.reactivate(t0) }
