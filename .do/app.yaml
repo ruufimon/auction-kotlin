@@ -35,20 +35,44 @@ services:
       - key: JAVA_OPTS
         scope: RUN_TIME
         value: "-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError"
-      # Uncomment together with the database block below.
-      # - key: DATABASE_URL
-      #   scope: RUN_TIME
-      #   value: ${db.DATABASE_URL}
-      # Secrets: set the value in the DigitalOcean console or via
+      # Production mode: the app refuses to start if any required setting below
+      # is missing, and connects to PostgreSQL with sslmode=require.
+      - key: APP_ENV
+        scope: RUN_TIME
+        value: production
+      - key: DB_HOST
+        scope: RUN_TIME
+        value: ${db.HOSTNAME}
+      - key: DB_PORT
+        scope: RUN_TIME
+        value: ${db.PORT}
+      - key: DB_NAME
+        scope: RUN_TIME
+        value: ${db.DATABASE}
+      - key: DB_USER
+        scope: RUN_TIME
+        value: ${db.USERNAME}
+      - key: DB_PASSWORD
+        scope: RUN_TIME
+        value: ${db.PASSWORD}
+      # Keep the pool below the cluster's connection limit (about 22 usable on
+      # db-s-1vcpu-1gb) across all instances.
+      - key: DB_POOL_SIZE
+        scope: RUN_TIME
+        value: "10"
+      # Secret: set the value (32+ chars) in the DigitalOcean console or via
       # `doctl apps update`; App Platform encrypts it. Never commit real values.
-      # - key: JWT_SECRET
-      #   scope: RUN_TIME
-      #   type: SECRET
+      - key: JWT_SECRET
+        scope: RUN_TIME
+        type: SECRET
 
-# Managed PostgreSQL — enable when the API gains persistence.
-# databases:
-#   - name: db
-#     engine: PG
-#     version: "16"
-#     production: true
-#     cluster_name: gavel-db
+# Managed PostgreSQL. The cluster must exist before this spec is applied:
+#   doctl databases create gavel-db --engine pg --version 16 \
+#     --region sgp1 --size db-s-1vcpu-1gb --num-nodes 1
+# Then: doctl apps update <app-id> --spec .do/app.yaml
+databases:
+  - name: db
+    engine: PG
+    version: "16"
+    production: true
+    cluster_name: gavel-db

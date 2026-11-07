@@ -31,9 +31,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build -t gavel-api:ci .
-      - name: Smoke test health endpoints
+      - name: Start PostgreSQL
         run: |
-          docker run -d --name api -p 8080:8080 gavel-api:ci
+          docker network create ci
+          docker run -d --name db --network ci \
+            -e POSTGRES_DB=auction_db -e POSTGRES_USER=auction -e POSTGRES_PASSWORD=ci-password \
+            postgres:16-alpine
+          for i in $(seq 1 30); do
+            docker exec db pg_isready -U auction -d auction_db && break
+            sleep 1
+          done
+      - name: Smoke test health endpoints
+        # Runs with APP_ENV=production so missing required config fails the build.
+        run: |
+          docker run -d --name api --network ci -p 8080:8080 \
+            -e APP_ENV=production \
+            -e DB_HOST=db -e DB_NAME=auction_db -e DB_USER=auction -e DB_PASSWORD=ci-password \
+            -e DB_SSLMODE=disable \
+            -e JWT_SECRET=ci-only-secret-0123456789abcdefghijklmnop \
+            gavel-api:ci
           for i in $(seq 1 60); do
             curl -fsS http://localhost:8080/health/ready && break
             sleep 1

@@ -247,6 +247,91 @@ Same event replayed twice = same result (no duplicate work).
 
 If you see a forbidden dependency error, that's a signal to use events instead.
 
+## Database Migrations (Flyway)
+
+Each feature owns its database migrations, packaged in its Gradle module. Migrations are applied in deterministic order by Flyway on application startup.
+
+### Migration Ownership
+
+| Feature | Migration Location |
+|---------|-------------------|
+| Shared | `app/src/main/resources/db/migration/shared/` |
+| User-Onboarding | `features/user-onboarding/src/main/resources/db/migration/onboarding/` |
+| Product-Catalog | `features/product-catalog/src/main/resources/db/migration/catalog/` |
+| Bidding | `features/bidding/src/main/resources/db/migration/bidding/` |
+| Settlement | `features/settlement/src/main/resources/db/migration/settlement/` |
+
+Ownership is expressed by **folder**, not by file prefix. The locations are listed in `FlywayConfig.LOCATIONS`.
+
+### Naming Convention
+
+**Format:** `V{yyyyMMddHHmm}__{description}.sql` (capital `V`, **two** underscores)
+
+- The version is a UTC timestamp of when the migration was written. Versions are global across all folders, so every new file must use a timestamp later than any migration already applied.
+- Timestamps avoid collisions when features add migrations in parallel branches.
+- Flyway runs with `validateMigrationNaming(true)`: a misnamed file fails startup instead of being silently skipped.
+
+**Examples:**
+- `V202611060001__create_event_outbox_table.sql` — Shared
+- `V202611060101__create_users_table.sql` — User-Onboarding
+- `V202611071430__add_users_display_name.sql` — a later User-Onboarding change
+
+### Application Order
+
+Flyway sorts all migrations from all locations by version and applies them in that order. When a migration depends on another feature's table (e.g. a foreign key to `users`), its timestamp must be later.
+
+Never edit a migration that has been applied to a shared environment (staging/production); add a new one instead.
+
+### Adding a New Migration
+
+**Step 1: Create the file in your feature's migration folder**
+```bash
+touch features/user-onboarding/src/main/resources/db/migration/onboarding/V$(date -u +%Y%m%d%H%M)__add_email_index.sql
+```
+
+**Step 2: Write the SQL** (PostgreSQL 16)
+```sql
+CREATE INDEX idx_users_email_lower ON users (lower(email));
+```
+
+**Step 3: Verify**
+```bash
+./gradlew :app:test --tests '*MigrationTest*'   # applies all migrations to a Testcontainers PostgreSQL
+```
+Update the expected migration count and tables in `MigrationTest` when you add files.
+
+**Step 4: Run locally** (migrations apply on startup)
+```bash
+docker-compose -f docker-compose.dev.yml up
+psql -h localhost -U auction -d auction_db -c 'SELECT version, description FROM flyway_schema_history;'
+```
+
+### Within Migrations
+
+- Use `CASCADE` only for test/dev schemas; production must be explicit about deletion
+- Always include indexes on foreign keys and frequently queried fields
+- Document constraints: use `CONSTRAINT fk_...` names so they're visible in `\d`
+- Store money as `BIGINT` integer minor units (e.g. `amount_minor`), never `DECIMAL`/floating point
+- Partial unique constraints must be `CREATE UNIQUE INDEX ... WHERE ...`, not inline in `CREATE TABLE`
+- Add comments for business rules:
+  ```sql
+  COMMENT ON COLUMN users.email_verified IS 'Email must be verified before bidding (USR-004)';
+  ```
+
+### Troubleshooting Migrations
+
+| Problem | Cause | Fix |
+|---------|-------|-----|
+| `Flyway migration failed: file not found` | Typo in location path | Check `FlywayConfig.kt` locations array matches folder names |
+| `Duplicate version: U1` | Two `U1_*.sql` files | Rename one to `U2_*.sql`, update version sequence |
+| `Migration error: column already exists` | Idempotent migration ran twice | Wrap in `IF NOT EXISTS` (Postgres doesn't support; use conditional logic or check first) |
+| `Migration blocked by dependent FK` | Can't alter table due to foreign key | Defer constraint check or migrate the dependent table first |
+
+### See Also
+- [DOMAIN_EVENTS.md](DOMAIN_EVENTS.md) — Outbox table schema and event persistence
+- [requirement.md](requirement.md) — Section 4.1: Flyway for versioned migrations
+- `FlywayConfig.kt` — Flyway initialization (runs on app startup before Ktor routing)
+
 ## Errors You May See
 
 | Message | Meaning | Fix |

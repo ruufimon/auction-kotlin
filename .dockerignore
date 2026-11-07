@@ -9,3 +9,9 @@ web
 Dockerfile
 .dockerignore
 *.md
+
+# Gradle test sources are not needed in the image
+**/src/test
+**/build
+**/.gradle
+**/.kotlin
