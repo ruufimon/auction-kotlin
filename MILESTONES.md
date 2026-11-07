@@ -24,10 +24,11 @@ All milestones are now created and tracked on GitHub. This document provides a q
 - **Status:** Open
 - **URL:** https://github.com/ruufimon/auction-kotlin/milestone/2
 
-### M3: Catalog API
+### M3: Catalog API & UI
 - **Week:** 2-3
 - **Focus:** Listing and auction management
-- **Deliverables:** 8 catalog endpoints (create, update, publish, cancel, search, scheduler)
+- **Deliverables:** 8 catalog endpoints (create, update, mine, publish, cancel, detail, search, images), activation/closing scheduler jobs, marketplace/detail/seller UI
+- **Plan:** [docs/M3_CATALOG_PLAN.md](./docs/M3_CATALOG_PLAN.md)
 - **Dependencies:** M2
 - **Status:** Open
 - **URL:** https://github.com/ruufimon/auction-kotlin/milestone/3
@@ -84,18 +85,21 @@ POST   /api/v1/profile/{userId}/enable-seller
 ```
 POST   /api/v1/listings
 PUT    /api/v1/listings/{listingId}
+GET    /api/v1/listings/mine
 POST   /api/v1/listings/{listingId}/publish
 POST   /api/v1/listings/{listingId}/cancel
 GET    /api/v1/listings/{listingId}
 GET    /api/v1/listings/search
-GET    /api/v1/listings/{listingId}/bids
+POST   /api/v1/listings/{listingId}/images   (if upload is chosen, see #54)
 ```
+Detailed plan: [docs/M3_CATALOG_PLAN.md](./docs/M3_CATALOG_PLAN.md) — issues #46–#54 plus UI #33–#35.
 
 ### Bidding (4 endpoints)
 ```
 POST   /api/v1/bids
 GET    /api/v1/bids/my-bids
 GET    /api/v1/auctions/{auctionId}/bid-history
+GET    /api/v1/listings/{listingId}/bids
 ```
 
 ### Settlement (6 endpoints)
