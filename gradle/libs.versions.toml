@@ -13,6 +13,8 @@ jwt = "4.4.0"
 slf4j = "2.0.11"
 logback = "1.5.0"
 micrometer = "1.15.0"
+cucumber = "7.20.1"
+junit-platform = "1.10.0"
 
 [libraries]
 # Ktor
@@ -23,6 +25,11 @@ ktor-server-auth-jwt = { module = "io.ktor:ktor-server-auth-jwt", version.ref = 
 ktor-server-test-host = { module = "io.ktor:ktor-server-test-host", version.ref = "ktor" }
 ktor-server-call-logging = { module = "io.ktor:ktor-server-call-logging", version.ref = "ktor" }
 ktor-server-metrics-micrometer = { module = "io.ktor:ktor-server-metrics-micrometer", version.ref = "ktor" }
+ktor-server-status-pages = { module = "io.ktor:ktor-server-status-pages", version.ref = "ktor" }
+ktor-server-content-negotiation = { module = "io.ktor:ktor-server-content-negotiation", version.ref = "ktor" }
+ktor-server-call-id = { module = "io.ktor:ktor-server-call-id", version.ref = "ktor" }
+ktor-server-rate-limit = { module = "io.ktor:ktor-server-rate-limit", version.ref = "ktor" }
+ktor-serialization-kotlinx-json = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktor" }
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
 ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktor" }
 
@@ -51,6 +58,11 @@ micrometer-registry-otlp = { module = "io.micrometer:micrometer-registry-otlp", 
 slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
 logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
 
+# Acceptance testing (Cucumber on the JUnit platform)
+cucumber-java = { module = "io.cucumber:cucumber-java", version.ref = "cucumber" }
+cucumber-junit-platform-engine = { module = "io.cucumber:cucumber-junit-platform-engine", version.ref = "cucumber" }
+junit-platform-suite = { module = "org.junit.platform:junit-platform-suite", version.ref = "junit-platform" }
+
 # Testing
 junit-api = { module = "org.junit.jupiter:junit-jupiter-api", version.ref = "junit" }
 junit-engine = { module = "org.junit.jupiter:junit-jupiter-engine", version.ref = "junit" }
@@ -60,13 +72,15 @@ testcontainers-postgresql = { module = "org.testcontainers:postgresql", version.
 testcontainers-junit-jupiter = { module = "org.testcontainers:junit-jupiter", version.ref = "testcontainers" }
 
 [bundles]
-ktor-server = ["ktor-server-core", "ktor-server-netty", "ktor-server-auth", "ktor-server-auth-jwt", "ktor-server-call-logging"]
+ktor-server = ["ktor-server-core", "ktor-server-netty", "ktor-server-auth", "ktor-server-auth-jwt", "ktor-server-call-logging", "ktor-server-status-pages", "ktor-server-content-negotiation", "ktor-server-call-id", "ktor-server-rate-limit", "ktor-serialization-kotlinx-json"]
+ktor-web = ["ktor-server-core", "ktor-server-auth", "ktor-server-auth-jwt", "ktor-server-status-pages", "ktor-server-content-negotiation", "ktor-server-call-id", "ktor-server-rate-limit", "ktor-serialization-kotlinx-json"]
 ktor-client = ["ktor-client-core", "ktor-client-okhttp"]
 exposed = ["exposed-core", "exposed-jdbc", "exposed-dao", "exposed-java-time"]
 database = ["postgresql-driver", "hikaricp", "flyway-core", "flyway-postgresql"]
 logging = ["slf4j-api", "logback-classic"]
 observability = ["ktor-server-metrics-micrometer", "micrometer-core", "micrometer-registry-otlp"]
 testing = ["junit-api", "kotlin-test", "testcontainers-core", "testcontainers-postgresql", "testcontainers-junit-jupiter"]
+acceptance = ["cucumber-java", "cucumber-junit-platform-engine", "junit-platform-suite"]
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

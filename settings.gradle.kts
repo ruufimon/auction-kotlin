@@ -1,5 +1,6 @@
 rootProject.name = "auction"
 
+include("kernel")
 include("app")
 include("features:user-onboarding")
 include("features:product-catalog")
