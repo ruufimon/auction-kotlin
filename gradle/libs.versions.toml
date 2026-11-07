@@ -12,6 +12,7 @@ spring-security = "6.2.0"
 jwt = "4.4.0"
 slf4j = "2.0.11"
 logback = "1.5.0"
+micrometer = "1.15.0"
 
 [libraries]
 # Ktor
@@ -21,6 +22,7 @@ ktor-server-auth = { module = "io.ktor:ktor-server-auth", version.ref = "ktor" }
 ktor-server-auth-jwt = { module = "io.ktor:ktor-server-auth-jwt", version.ref = "ktor" }
 ktor-server-test-host = { module = "io.ktor:ktor-server-test-host", version.ref = "ktor" }
 ktor-server-call-logging = { module = "io.ktor:ktor-server-call-logging", version.ref = "ktor" }
+ktor-server-metrics-micrometer = { module = "io.ktor:ktor-server-metrics-micrometer", version.ref = "ktor" }
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
 ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktor" }
 
@@ -41,6 +43,10 @@ kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serializa
 spring-security-crypto = { module = "org.springframework.security:spring-security-crypto", version.ref = "spring-security" }
 jwt = { module = "com.auth0:java-jwt", version.ref = "jwt" }
 
+# Observability
+micrometer-core = { module = "io.micrometer:micrometer-core", version.ref = "micrometer" }
+micrometer-registry-otlp = { module = "io.micrometer:micrometer-registry-otlp", version.ref = "micrometer" }
+
 # Logging
 slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
 logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
@@ -59,6 +65,7 @@ ktor-client = ["ktor-client-core", "ktor-client-okhttp"]
 exposed = ["exposed-core", "exposed-jdbc", "exposed-dao", "exposed-java-time"]
 database = ["postgresql-driver", "hikaricp", "flyway-core", "flyway-postgresql"]
 logging = ["slf4j-api", "logback-classic"]
+observability = ["ktor-server-metrics-micrometer", "micrometer-core", "micrometer-registry-otlp"]
 testing = ["junit-api", "kotlin-test", "testcontainers-core", "testcontainers-postgresql", "testcontainers-junit-jupiter"]
 
 [plugins]

@@ -3,6 +3,10 @@ package com.gavel
 import com.gavel.config.AppConfig
 import com.gavel.infrastructure.DatabaseConfig
 import com.gavel.migration.FlywayConfig
+import com.gavel.observability.createMeterRegistry
+import com.gavel.observability.installMetrics
+import io.micrometer.core.instrument.MeterRegistry
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.engine.embeddedServer
@@ -25,19 +29,26 @@ fun main() {
     val dataSource = DatabaseConfig.createDataSource(config.database)
     FlywayConfig.runMigrations(dataSource)
     Database.connect(dataSource)
+    val registry = createMeterRegistry(config.observability)
 
     embeddedServer(Netty, host = "0.0.0.0", port = config.port, module = {
-        module(readinessCheck = {
-            withContext(Dispatchers.IO) { DatabaseConfig.isHealthy(dataSource) }
-        })
+        module(
+            readinessCheck = { withContext(Dispatchers.IO) { DatabaseConfig.isHealthy(dataSource) } },
+            meterRegistry = registry,
+        )
     }).start(wait = true)
 }
 
 /**
  * @param readinessCheck reports whether required infrastructure (the database)
  * is reachable. `/health/ready` returns 503 while it returns false.
+ * @param meterRegistry receives HTTP and JVM metrics; tests pass an in-memory one.
  */
-fun Application.module(readinessCheck: suspend () -> Boolean = { true }) {
+fun Application.module(
+    readinessCheck: suspend () -> Boolean = { true },
+    meterRegistry: MeterRegistry = SimpleMeterRegistry(),
+) {
+    installMetrics(meterRegistry)
     routing {
         get("/health/live") {
             call.respondText("OK")
