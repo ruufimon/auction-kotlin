@@ -1,39 +1,48 @@
-@USR-005 @issue-21 @api
-Feature: Sign in
-  Only a verified, credit-eligible, non-suspended account receives tokens.
+@USR-005 @issue-19 @issue-20 @api
+Feature: Sign in and token validation
+  Keycloak authenticates and issues tokens. The application validates every access token
+  against the realm's keys and then authorizes from its own account state.
 
   Background:
-    Given access tokens expire after 15 minutes
-    And refresh tokens expire after 30 days
+    Given a Keycloak realm created from deploy/keycloak/realm-gavel.json
+    And access tokens expire after 15 minutes and refresh tokens after 30 days
 
-  Scenario: An active account receives an access token and a refresh token
-    Given "mina@example.com" is ACTIVE with password "correct-horse-battery"
-    When they sign in with "mina@example.com" and "correct-horse-battery"
+  Scenario: An active account signs in and reaches a protected endpoint
+    Given "mina@example.com" is ACTIVE in the application
+    When they sign in at Keycloak with the correct password
+    Then Keycloak issues a JWT access token with claims "sub", "email", "email_verified" and audience "gavel-api"
+    And a refresh token
+    When the access token is used to read their own profile
     Then the response status is 200
-    And the response contains a JWT access token with claims "user_id" and "email" and an expiry 15 minutes ahead
-    And the response contains an opaque refresh token
-    And the refresh token is stored as a hash with an expiry 30 days ahead
-    And a "user-onboarding.signed-in" audit event is recorded
 
-  Scenario: A wrong password is rejected
-    Given "mina@example.com" is ACTIVE with password "correct-horse-battery"
-    When they sign in with "mina@example.com" and "wrong-password-here"
+  Scenario: Google sign-in for an active account
+    Given "mina@example.com" is ACTIVE and linked to a Google identity
+    When they sign in with Google
+    Then Keycloak issues tokens for the same subject
+    And reading their own profile returns their existing "userId"
+
+  Scenario: A wrong password is rejected by the provider
+    When someone signs in at Keycloak with "mina@example.com" and a wrong password
+    Then Keycloak returns its invalid-credentials error
+    And no token is issued
+
+  Scenario Outline: Tokens that are not from this realm are rejected
+    When a token <kind> is used to read a profile
     Then the response status is 401
-    And the error code is "INVALID_CREDENTIALS"
-    And no refresh token is created
+    And the error code is "<code>"
 
-  Scenario: An unknown email is rejected with the same response as a wrong password
-    When someone signs in with "nobody@example.com" and "any-password-at-all"
-    Then the response status is 401
-    And the error code is "INVALID_CREDENTIALS"
-    And the response body and timing do not reveal that the email is unregistered
+    Examples:
+      | kind                                         | code                 |
+      | signed by a key the realm does not publish   | TOKEN_INVALID        |
+      | with the right key but a different issuer    | TOKEN_INVALID        |
+      | with audience other than "gavel-api"         | TOKEN_WRONG_AUDIENCE |
+      | expired 16 minutes ago                       | TOKEN_EXPIRED        |
 
-  Scenario Outline: Accounts that are not active cannot sign in
-    Given "mina@example.com" is in state "<state>" with password "correct-horse-battery"
-    When they sign in with "mina@example.com" and "correct-horse-battery"
+  Scenario Outline: A valid token does not override application account state
+    Given "mina@example.com" holds a valid access token and is in application state "<state>"
+    When they attempt to place a bid
     Then the response status is 403
     And the error code is "<code>"
-    And no tokens are issued
 
     Examples:
       | state                      | code                               |
@@ -41,25 +50,27 @@ Feature: Sign in
       | PENDING_CREDIT_ELIGIBILITY | ACCOUNT_PENDING_CREDIT_ELIGIBILITY |
       | SUSPENDED                  | ACCOUNT_SUSPENDED                  |
 
-  Scenario: A failed eligibility assessment keeps sign-in blocked with the stable reason
-    Given "mina@example.com" failed the credit-eligibility assessment with reason "BELOW_MINIMUM_SCORE"
-    When they sign in with the correct password
-    Then the response status is 403
-    And the error code is "ACCOUNT_PENDING_CREDIT_ELIGIBILITY"
-    And the error details include "eligibilityReason" = "BELOW_MINIMUM_SCORE"
+  Scenario: A failed eligibility assessment is reported with the stable reason
+    Given "mina@example.com" failed the assessment with reason "BELOW_MINIMUM_SCORE"
+    When they call GET /api/v1/me
+    Then the response status is 200
+    And "accountState" is "PENDING_CREDIT_ELIGIBILITY" and "eligibilityReason" is "BELOW_MINIMUM_SCORE"
 
-  Scenario: Sign-in attempts are rate limited
-    Given "mina@example.com" is ACTIVE
+  Scenario: Repeated failed sign-ins are locked out by the provider
     When 10 sign-in attempts with a wrong password are made within one minute
-    Then the next attempt returns status 429
-    And the error code is "RATE_LIMITED"
-    And the response carries a "Retry-After" header
+    Then Keycloak's brute-force protection temporarily locks the account
+    And Keycloak's event log records LOGIN_ERROR events with the lockout reason
+
+  Scenario: JWKS rotation is handled without downtime
+    Given the realm rotates its signing key
+    When a token signed by the new key arrives
+    Then the application refreshes its cached keys and accepts the token
+    And tokens signed by the retired key are rejected once the realm stops publishing it
 
   @ui @issue-31
-  Scenario: Sign-in page maps every error to a message and next step
-    Given the web app sign-in page is open
-    Then "INVALID_CREDENTIALS" shows a credentials message with a password-reset link
-    And "ACCOUNT_PENDING_VERIFICATION" shows a resend-verification action
-    And "ACCOUNT_PENDING_CREDIT_ELIGIBILITY" shows a link to the eligibility check
-    And "ACCOUNT_SUSPENDED" shows a support contact
-    And "RATE_LIMITED" shows the wait time
+  Scenario: The web app maps provider and application errors to messages
+    Given the web app is on the sign-in flow
+    Then provider credential and lockout errors are shown on the themed Keycloak page
+    And "ACCOUNT_PENDING_VERIFICATION" routes to the check-your-email page
+    And "ACCOUNT_PENDING_CREDIT_ELIGIBILITY" routes to the eligibility check
+    And "ACCOUNT_SUSPENDED" shows a support contact and signs the user out
