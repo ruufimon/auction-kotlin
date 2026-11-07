@@ -5,6 +5,11 @@ import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
 import com.gavel.kernel.auth.TestIdentityProvider
 import com.gavel.kernel.testing.TestDatabase
+import com.gavel.onboarding.config.UserOnboardingSettings
+import com.gavel.onboarding.domain.CreditPolicy
+import com.gavel.onboarding.domain.SellerRequirements
+import com.gavel.onboarding.service.IdentityProviderAdmin
+import java.time.Duration
 import io.ktor.client.HttpClient
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.header
@@ -30,6 +35,18 @@ import java.time.ZoneOffset
 class World {
     val clock = MutableClock(Instant.parse("2026-11-07T10:00:00Z"))
     val idp = TestIdentityProvider(clock = clock)
+    val idpAdmin = RecordingIdentityProviderAdmin()
+
+    /** "the configured policy" of USR-012; scenarios may pin or change it. */
+    var policy = CreditPolicy("test-policy-1", minimumScore = 40, incomeMinorPerPoint = 100_000, wealthMinorPerPoint = 100_000, maxPointsPerFactor = 40, retryAfter = Duration.ofDays(30))
+    var sellerRequirements = SellerRequirements.DEFAULT
+    val settings = UserOnboardingSettings(
+        assessmentEncryptionKey = UserOnboardingSettings.DEV_ENCRYPTION_KEY,
+        creditPolicy = policy,
+        sellerRequirements = sellerRequirements,
+        internalApiToken = "operator-secret",
+        bootstrapRateLimitPerMinute = 60,
+    )
     var app: TestApplication? = null
     val client: HttpClient get() = checkNotNull(app) { "scenario not started" }.client
 
@@ -105,4 +122,21 @@ class MutableClock(private var now: Instant) : Clock() {
     override fun instant(): Instant = now
     fun set(instant: Instant) { now = instant }
     fun advance(duration: java.time.Duration) { now = now.plus(duration) }
+}
+
+/** Records provider admin calls; can be told to fail to simulate an unreachable admin API. */
+class RecordingIdentityProviderAdmin : IdentityProviderAdmin {
+    val disabled = mutableListOf<String>()
+    val enabled = mutableListOf<String>()
+    var unreachable = false
+
+    override suspend fun disableUser(subject: String) {
+        if (unreachable) throw java.io.IOException("Keycloak admin API unreachable")
+        disabled += subject
+    }
+
+    override suspend fun enableUser(subject: String) {
+        if (unreachable) throw java.io.IOException("Keycloak admin API unreachable")
+        enabled += subject
+    }
 }
