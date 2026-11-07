@@ -1,0 +1,44 @@
+#cloud-config
+package_update: true
+packages: [ca-certificates, curl, git, gnupg, apt-transport-https, debian-keyring, debian-archive-keyring]
+write_files:
+  - path: /usr/local/bin/signoz-bootstrap.sh
+    permissions: '0755'
+    content: |
+      #!/usr/bin/env bash
+      set -euxo pipefail
+      exec > >(tee -a /var/log/signoz-bootstrap.log) 2>&1
+      # Docker
+      curl -fsSL https://get.docker.com | sh
+      systemctl enable --now docker
+      # Caddy (official apt repo)
+      curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+      curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' > /etc/apt/sources.list.d/caddy-stable.list
+      apt-get update && apt-get install -y caddy
+      # SigNoz (docker compose deployment)
+      git clone --depth 1 https://github.com/SigNoz/signoz.git /opt/signoz
+      cd /opt/signoz/deploy/docker
+      docker compose -f docker-compose.yaml up -d --remove-orphans
+      # Public hostname via sslip.io so Caddy can get a Let's Encrypt cert without DNS setup
+      IP=$(curl -fsS http://169.254.169.254/metadata/v1/interfaces/public/0/ipv4/address)
+      HOST="${IP}.sslip.io"
+      cat > /etc/caddy/Caddyfile <<CADDY
+      ${HOST} {
+        encode gzip
+        @otlp path /v1/traces /v1/metrics /v1/logs
+        handle @otlp {
+          @unauth not header Authorization "Bearer ${INGEST_TOKEN}"
+          respond @unauth 401
+          reverse_proxy 127.0.0.1:4318
+        }
+        handle {
+          reverse_proxy 127.0.0.1:8080
+        }
+      }
+      CADDY
+      systemctl enable caddy
+      systemctl restart caddy
+      echo "${HOST}" > /var/lib/signoz-host
+      touch /var/lib/signoz-ready
+runcmd:
+  - [ /usr/local/bin/signoz-bootstrap.sh ]

@@ -16,6 +16,7 @@ dependencies {
     implementation(libs.bundles.database)
     implementation(libs.bundles.exposed)
     implementation(libs.bundles.logging)
+    implementation(libs.bundles.observability)
     implementation(libs.ktor.server.call.logging)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.jwt)
