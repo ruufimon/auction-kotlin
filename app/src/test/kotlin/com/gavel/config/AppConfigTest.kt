@@ -17,7 +17,9 @@ class AppConfigTest {
         "DB_NAME" to "gavel",
         "DB_USER" to "gavel_app",
         "DB_PASSWORD" to "s3cret",
-        "JWT_SECRET" to "x".repeat(AppConfig.MIN_JWT_SECRET_LENGTH),
+        "OIDC_ISSUER" to "https://id.gavel.example/realms/gavel",
+        "ASSESSMENT_ENCRYPTION_KEY" to "ZGV2LW9ubHktYXNzZXNzbWVudC1rZXktMDAwMDAwMDA=",
+        "INTERNAL_API_TOKEN" to "operator-secret",
     )
 
     @Test
@@ -27,6 +29,10 @@ class AppConfigTest {
         assertFalse(config.isProduction)
         assertEquals(8080, config.port)
         assertEquals("jdbc:postgresql://localhost:5432/auction_db?sslmode=prefer", config.database.jdbcUrl)
+        assertEquals(AppConfig.DEV_OIDC_ISSUER, config.identity.issuer)
+        assertEquals("${AppConfig.DEV_OIDC_ISSUER}/protocol/openid-connect/certs", config.identity.jwksUrl)
+        assertEquals("gavel-api", config.identity.audience)
+        assertEquals(null, config.onboarding.internalApiToken)
     }
 
     @Test
@@ -36,6 +42,7 @@ class AppConfigTest {
         assertTrue(config.isProduction)
         assertEquals(9090, config.port)
         assertEquals("jdbc:postgresql://db.internal:25060/gavel?sslmode=require", config.database.jdbcUrl)
+        assertEquals("https://id.gavel.example/realms/gavel/protocol/openid-connect/certs", config.identity.jwksUrl)
     }
 
     @Test
@@ -44,16 +51,26 @@ class AppConfigTest {
             AppConfig.fromEnv(env("APP_ENV" to "production", "DB_HOST" to "db.internal"))
         }
 
-        listOf("DB_NAME", "DB_USER", "DB_PASSWORD", "JWT_SECRET").forEach { assertContains(error.message!!, it) }
+        listOf("DB_NAME", "DB_USER", "DB_PASSWORD", "OIDC_ISSUER").forEach { assertContains(error.message!!, it) }
     }
 
     @Test
-    fun `production rejects a short JWT secret`() {
+    fun `production requires the onboarding secrets`() {
         val error = assertThrows<IllegalStateException> {
-            AppConfig.fromEnv(env(*productionEnv, "JWT_SECRET" to "too-short"))
+            AppConfig.fromEnv(env(*productionEnv.filterNot { it.first == "ASSESSMENT_ENCRYPTION_KEY" || it.first == "INTERNAL_API_TOKEN" }.toTypedArray()))
         }
 
-        assertContains(error.message!!, "JWT_SECRET")
+        assertContains(error.message!!, "ASSESSMENT_ENCRYPTION_KEY")
+        assertContains(error.message!!, "INTERNAL_API_TOKEN")
+    }
+
+    @Test
+    fun `production rejects a plain-http issuer`() {
+        val error = assertThrows<IllegalStateException> {
+            AppConfig.fromEnv(env(*productionEnv, "OIDC_ISSUER" to "http://id.gavel.example/realms/gavel"))
+        }
+
+        assertContains(error.message!!, "OIDC_ISSUER")
     }
 
     @Test

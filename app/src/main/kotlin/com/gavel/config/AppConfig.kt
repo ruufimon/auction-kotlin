@@ -1,5 +1,8 @@
 package com.gavel.config
 
+import com.gavel.kernel.auth.IdentityProviderSettings
+import com.gavel.onboarding.config.UserOnboardingSettings
+
 data class DatabaseSettings(
     val host: String,
     val port: Int,
@@ -11,13 +14,6 @@ data class DatabaseSettings(
 ) {
     val jdbcUrl: String get() = "jdbc:postgresql://$host:$port/$name?sslmode=$sslMode"
 }
-
-data class JwtSettings(
-    val secret: String,
-    val issuer: String,
-    val audience: String,
-    val accessTokenTtlSeconds: Long,
-)
 
 /**
  * Metrics export over OTLP/HTTP (SigNoz, Grafana, New Relic, ... all accept it).
@@ -46,14 +42,16 @@ data class AppConfig(
     val environment: String,
     val port: Int,
     val database: DatabaseSettings,
-    val jwt: JwtSettings,
+    /** Keycloak realm that issues the access tokens the API accepts (USR-005). */
+    val identity: IdentityProviderSettings,
     val observability: ObservabilitySettings,
+    val onboarding: UserOnboardingSettings,
 ) {
     val isProduction: Boolean get() = environment == PRODUCTION
 
     companion object {
         const val PRODUCTION = "production"
-        const val MIN_JWT_SECRET_LENGTH = 32
+        const val DEV_OIDC_ISSUER = "http://localhost:8180/realms/gavel"
 
         fun fromEnv(getenv: (String) -> String? = System::getenv): AppConfig {
             val environment = getenv("APP_ENV")?.trim()?.lowercase().takeUnless { it.isNullOrEmpty() } ?: "development"
@@ -82,11 +80,12 @@ data class AppConfig(
                 maxPoolSize = int("DB_POOL_SIZE", 10),
             )
 
-            val jwt = JwtSettings(
-                secret = value("JWT_SECRET", "dev-secret-key-change-in-production-0000"),
-                issuer = getenv("JWT_ISSUER")?.takeIf { it.isNotBlank() } ?: "auction-api",
-                audience = getenv("JWT_AUDIENCE")?.takeIf { it.isNotBlank() } ?: "auction-client",
-                accessTokenTtlSeconds = int("JWT_ACCESS_TOKEN_TTL", 900).toLong(),
+            // The realm URL doubles as the token issuer; JWKS defaults to the realm's certs endpoint.
+            val issuer = value("OIDC_ISSUER", DEV_OIDC_ISSUER).trimEnd('/')
+            val identity = IdentityProviderSettings(
+                issuer = issuer,
+                audience = getenv("OIDC_AUDIENCE")?.takeIf { it.isNotBlank() } ?: IdentityProviderSettings.DEFAULT_AUDIENCE,
+                jwksUrl = getenv("OIDC_JWKS_URL")?.takeIf { it.isNotBlank() } ?: "$issuer/protocol/openid-connect/certs",
             )
 
             // Standard OpenTelemetry variable names so any OTLP backend's docs apply.
@@ -101,16 +100,17 @@ data class AppConfig(
             check(missing.isEmpty()) {
                 "Missing required environment variables for APP_ENV=production: ${missing.joinToString()}"
             }
-            check(!production || jwt.secret.length >= MIN_JWT_SECRET_LENGTH) {
-                "JWT_SECRET must be at least $MIN_JWT_SECRET_LENGTH characters in production"
+            check(!production || identity.issuer.startsWith("https://")) {
+                "OIDC_ISSUER must be an https URL in production"
             }
 
             return AppConfig(
                 environment = environment,
                 port = int("PORT", 8080),
                 database = database,
-                jwt = jwt,
+                identity = identity,
                 observability = observability,
+                onboarding = UserOnboardingSettings.fromEnv(getenv, production),
             )
         }
 

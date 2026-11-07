@@ -34,7 +34,7 @@ class MigrationTest {
 
         private val EXPECTED_TABLES = setOf(
             "event_outbox", "audit_log",
-            "users", "refresh_tokens", "email_verification_tokens",
+            "users",
             "listings", "listing_images",
             "bids",
             "orders",
@@ -66,7 +66,7 @@ class MigrationTest {
     @Test
     fun `all feature migrations apply and create the expected tables`() {
         val first = FlywayConfig.runMigrations(dataSource)
-        assertEquals(9, first.migrationsExecuted, "every migration file should be picked up")
+        assertEquals(10, first.migrationsExecuted, "every migration file should be picked up")
 
         val tables = dataSource.connection.use { conn ->
             conn.createStatement().use { st ->
@@ -76,6 +76,8 @@ class MigrationTest {
             }
         }
         assertTrue(tables.containsAll(EXPECTED_TABLES), "missing tables: ${EXPECTED_TABLES - tables}")
+        // Credentials and tokens live in Keycloak (USR-002, USR-006): the M1 tables are gone.
+        assertTrue(tables.none { it.contains("token") }, "no token tables expected, found: ${tables.filter { it.contains("token") }}")
 
         val second = FlywayConfig.runMigrations(dataSource)
         assertEquals(0, second.migrationsExecuted, "re-running migrations must be a no-op")
