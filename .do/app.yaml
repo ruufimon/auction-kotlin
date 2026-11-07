@@ -65,6 +65,18 @@ services:
       - key: JWT_SECRET
         scope: RUN_TIME
         type: SECRET
+      # Metrics export to the self-hosted SigNoz (deploy/signoz/README.md).
+      # Leave OTEL_EXPORTER_OTLP_ENDPOINT unset to disable export.
+      - key: OTEL_EXPORTER_OTLP_ENDPOINT
+        scope: RUN_TIME
+        value: https://159.65.140.90.sslip.io
+      - key: OTEL_SERVICE_NAME
+        scope: RUN_TIME
+        value: gavel-api
+      # Secret: "Authorization=Bearer <INGEST_TOKEN>"; set in the console or via doctl.
+      - key: OTEL_EXPORTER_OTLP_HEADERS
+        scope: RUN_TIME
+        type: SECRET
 
 # Managed PostgreSQL. The cluster must exist before this spec is applied:
 #   doctl databases create gavel-db --engine pg --version 16 \

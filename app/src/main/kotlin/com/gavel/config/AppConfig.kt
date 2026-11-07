@@ -20,6 +20,21 @@ data class JwtSettings(
 )
 
 /**
+ * Metrics export over OTLP/HTTP (SigNoz, Grafana, New Relic, ... all accept it).
+ * Export is off when [endpoint] is null, which is the local-development default.
+ */
+data class ObservabilitySettings(
+    val serviceName: String,
+    val environment: String,
+    val endpoint: String?,
+    val headers: Map<String, String>,
+    val exportIntervalSeconds: Long,
+) {
+    val enabled: Boolean get() = endpoint != null
+    val metricsUrl: String? get() = endpoint?.trimEnd('/')?.plus("/v1/metrics")
+}
+
+/**
  * Application configuration read from environment variables.
  *
  * Outside production, missing values fall back to local-development defaults
@@ -32,6 +47,7 @@ data class AppConfig(
     val port: Int,
     val database: DatabaseSettings,
     val jwt: JwtSettings,
+    val observability: ObservabilitySettings,
 ) {
     val isProduction: Boolean get() = environment == PRODUCTION
 
@@ -73,6 +89,15 @@ data class AppConfig(
                 accessTokenTtlSeconds = int("JWT_ACCESS_TOKEN_TTL", 900).toLong(),
             )
 
+            // Standard OpenTelemetry variable names so any OTLP backend's docs apply.
+            val observability = ObservabilitySettings(
+                serviceName = getenv("OTEL_SERVICE_NAME")?.takeIf { it.isNotBlank() } ?: "gavel-api",
+                environment = environment,
+                endpoint = getenv("OTEL_EXPORTER_OTLP_ENDPOINT")?.takeIf { it.isNotBlank() },
+                headers = parseOtlpHeaders(getenv("OTEL_EXPORTER_OTLP_HEADERS")),
+                exportIntervalSeconds = int("OTEL_METRIC_EXPORT_INTERVAL", 30).toLong(),
+            )
+
             check(missing.isEmpty()) {
                 "Missing required environment variables for APP_ENV=production: ${missing.joinToString()}"
             }
@@ -85,7 +110,18 @@ data class AppConfig(
                 port = int("PORT", 8080),
                 database = database,
                 jwt = jwt,
+                observability = observability,
             )
         }
+
+        /** `OTEL_EXPORTER_OTLP_HEADERS` is `key=value,key2=value2`; values may contain `=` (e.g. base64). */
+        internal fun parseOtlpHeaders(raw: String?): Map<String, String> =
+            raw.orEmpty().split(',')
+                .map { it.trim() }
+                .filter { it.contains('=') }
+                .associate { pair ->
+                    val i = pair.indexOf('=')
+                    pair.substring(0, i).trim() to pair.substring(i + 1).trim()
+                }
     }
 }
