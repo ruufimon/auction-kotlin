@@ -296,7 +296,7 @@ Expected event flows include:
 - Emit structured logs containing timestamp, severity, service version, module, correlation ID, and safe entity identifiers.
 - Propagate correlation IDs through HTTP requests, domain events, and external-provider calls.
 - Record metrics for request latency and errors, bid acceptance and rejection, auction closure lag, payment outcomes, outbox backlog, retries, and dead-lettered events.
-- Record onboarding and authentication metrics: registration, verification, sign-in, refresh, assessment, and seller-enablement outcomes by stable code; refresh-token rotation and reuse; verification-email dispatch delay; credit-assessment outcomes by policy version; rate-limit activations.
+- Record onboarding metrics: account bootstrap outcomes, token-validation failures by stable code, assessment and seller-enablement outcomes by stable code, credit-assessment outcomes by policy version, and bootstrap rate-limit activations. Sign-in, refresh, verification, and brute-force events are collected from the identity provider's event stream or metrics endpoint.
 - Metric names, labels, and log fields never carry personal data, credentials, tokens, or credit-assessment inputs; stable outcome codes and policy versions are permitted.
 - Audit account state changes, listing publication and cancellation, accepted bids, auction closure, payment transitions, and fulfillment transitions.
 
