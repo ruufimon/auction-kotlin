@@ -2,6 +2,9 @@
 
 **Scope:** the onboarding journey (register → verify email → sign in → credit-eligibility
 assessment → profile → enable selling) plus token refresh, which every later request depends on.
+**Identity:** per requirement PR #60, registration, verification, sign-in and refresh are served by a
+self-hosted **Keycloak** (Google + email/password). Those steps are measured as a dependency; the
+application's own SLIs start at token validation and account bootstrap.
 **Requirements:** `requirement.md` §8.1 (liveness/readiness), §8.3 (observability), §8.4 (performance), §8.2 (abuse controls)
 **Deployment context:** one App Platform instance (`apps-s-1vcpu-1gb`, region sgp), one managed PostgreSQL (`db-s-1vcpu-1gb`), no metrics stack yet (only Logback)
 **Created:** 2026-11-07 · **Review:** after 30 days of production traffic, then quarterly
@@ -21,7 +24,8 @@ Window: 30 days rolling. "Good" excludes 4xx responses from the denominator for 
 
 | SLI | SLO | Error budget / 30 d | Routes |
 |---|---|---|---|
-| Onboarding API availability: non-5xx responses ÷ all responses | **99.5 %** | 3 h 36 min | `/api/v1/auth/*`, `/api/v1/profile/*` |
+| Onboarding API availability: non-5xx responses ÷ all responses | **99.5 %** | 3 h 36 min | `/api/v1/me`, `/api/v1/profile/*` |
+| Keycloak availability (dependency): OIDC discovery + token endpoint responding 2xx/4xx | **99.5 %** | 3 h 36 min | probed externally; an outage here blocks every sign-in |
 | Readiness: `/health/ready` returning 200 | **99.5 %** | 3 h 36 min | probe every 10 s (App Platform) |
 
 Rationale: App Platform redeploys cause brief readiness gaps on a single instance; 99.9 % is not credible until `instance_count: 2`.
@@ -30,15 +34,15 @@ Rationale: App Platform redeploys cause brief readiness gaps on a single instanc
 
 | Step | Route | p95 | p99 | Why this number |
 |---|---|---|---|---|
-| Register | `POST /auth/register` | 800 ms | 1.5 s | Argon2id hashing is deliberately ~300–500 ms on 1 vCPU |
-| Verify email | `POST /auth/verify-email` | 300 ms | 600 ms | one hash lookup + state transition + outbox insert |
-| Sign in | `POST /auth/signin` | 800 ms | 1.5 s | Argon2id verify + refresh-token insert |
-| Refresh | `POST /auth/refresh` | 150 ms | 400 ms | on the hot path of every session; hash lookup + rotate |
-| Sign out | `POST /auth/signout` | 150 ms | 400 ms | |
+| Register / sign-in page (Keycloak, dependency) | provider login + token endpoint | 1 s | 2 s | Argon2 verify inside Keycloak plus Google round-trip for social login |
+| Token refresh (Keycloak, dependency) | provider token endpoint | 300 ms | 800 ms | on the hot path of every session |
+| Account bootstrap | `GET /api/v1/me` | 300 ms | 600 ms | JWKS cached; one row lookup or insert + outbox |
+| Token validation overhead (app) | all authenticated routes | 5 ms | 20 ms | signature check against cached JWKS; a JWKS refetch must not sit on the request path |
 | Read profile | `GET /profile/{id}` | 200 ms | 500 ms | single row, decrypt nothing |
 | Update profile (no assessment) | `PUT /profile/{id}` | 300 ms | 600 ms | |
 | Credit assessment | `PUT /profile/{id}` with inputs | 500 ms | 1 s | encrypt three fields + policy evaluation + two outbox inserts |
 | Enable seller | `POST /profile/{id}/enable-seller` | 300 ms | 600 ms | |
+| Suspend (operator) | `POST /internal/accounts/{id}/suspend` | 1 s | 2 s | includes Keycloak admin API call; app state flips first |
 
 Each latency SLO is met when ≥ 99 % of 5-minute windows in the month satisfy the p95 target.
 
@@ -46,8 +50,9 @@ Each latency SLO is met when ≥ 99 % of 5-minute windows in the month satisfy t
 
 | SLI | SLO | Source |
 |---|---|---|
-| Verification email dispatch delay: register commit → email handed to provider | p95 ≤ **60 s**, p99 ≤ 5 min | outbox `created_at` → `published_at` for `user-onboarding.user-registered` |
-| Verification email dispatch success | ≥ **99 %** of registrations produce an accepted send within 15 min | email adapter outcome counter |
+| Verification email dispatch (Keycloak → SMTP) | p95 ≤ **60 s** | Keycloak event stream (`SEND_VERIFY_EMAIL`, `SEND_VERIFY_EMAIL_ERROR`) |
+| Verification → app state propagation: `email_verified` true at provider → account `PENDING_CREDIT_ELIGIBILITY` | on the user's next request, ≤ **1 request** lag | bootstrap transition counter |
+| Suspension propagation: app suspended → Keycloak user disabled and sessions ended | p95 ≤ **30 s** | outbox lag for the admin-API call |
 | Onboarding event delivery lag (all `user-onboarding.*` events) | p95 ≤ **30 s** | outbox lag gauge (§8.4 requires this to be alerted on) |
 | Outbox backlog of unpublished onboarding events | < **100** for more than 10 min is an alert | outbox backlog gauge |
 
@@ -57,17 +62,18 @@ These come straight from §9.1 and USR-006/USR-012. Each is a counter that shoul
 
 | Invariant | Signal |
 |---|---|
-| No verification token accepted after expiry or after use | `onboarding_invariant_violations_total{kind="token_reuse_accepted"}` from a post-commit check |
-| Refresh-token reuse always revokes the whole family | `auth_refresh_total{outcome="reused"}` must be matched 1:1 by `auth_token_family_revoked_total{reason="reuse"}` |
-| Suspended account never obtains a token | `auth_signin_total{outcome="issued", account_state!="active"}` = 0 |
+| No request with a token signed by a non-realm key, wrong issuer or wrong audience is ever authorized | `auth_token_validation_total{outcome="accepted", issuer!=realm}` = 0 |
+| A valid token for a `SUSPENDED` account is never authorized for bid, publish or fulfilment | `onboarding_invariant_violations_total{kind="suspended_authorized"}` = 0 |
+| One application account per provider subject and per verified email | `onboarding_invariant_violations_total{kind="duplicate_account"}` = 0 (unique index + bootstrap check) |
+| Refresh-token reuse ends the session (Keycloak) | provider event `REFRESH_TOKEN_ERROR` with reuse reason is followed by `LOGOUT`; checked in the acceptance suite against the versioned realm, monitored via Keycloak events |
 | Assessment raw inputs never logged | log-pipeline rule scanning onboarding log lines for the assessment field names with numeric values; count must be 0 |
 | Account activated only with a passing assessment | `onboarding_state_transitions_total{to="active"}` ≤ `credit_assessment_total{outcome="eligible"}` |
 
 ### 2.5 Abuse-control signals (monitor, not SLO)
 
-- `ratelimit_hits_total{endpoint}` for sign-in, refresh, verify-email, resend.
-- Failed-sign-in ratio over 15 min > 60 % with ≥ 50 attempts → security alert (credential stuffing).
-- Verification resend rate per account.
+- Keycloak events `LOGIN_ERROR` ratio over 15 min > 60 % with ≥ 50 attempts → security alert (credential stuffing); brute-force lockouts per hour.
+- `ratelimit_hits_total{endpoint}` for `/api/v1/me` (bootstrap) in the app.
+- Account-linking events per day (unexpected spikes indicate abuse of the link-by-email flow).
 
 ### 2.6 Journey indicators (product health, no SLO yet)
 
@@ -101,22 +107,19 @@ Error-budget policy: when the 30-day budget for any onboarding availability or l
 
 | Metric | Type | Labels |
 |---|---|---|
-| `onboarding_registrations_total` | counter | `outcome` = created \| duplicate \| invalid |
-| `onboarding_verification_total` | counter | `outcome` = verified \| expired \| used \| invalid |
+| `onboarding_bootstrap_total` | counter | `outcome` = created_pending_verification \| created_pending_eligibility \| linked \| existing \| rate_limited |
+| `auth_token_validation_total` | counter | `outcome` = accepted \| invalid \| expired \| wrong_audience \| wrong_issuer |
 | `onboarding_state_transitions_total` | counter | `from`, `to` |
-| `auth_signin_total` | counter | `outcome` = issued \| invalid_credentials \| not_active \| suspended \| rate_limited |
-| `auth_refresh_total` | counter | `outcome` = rotated \| reused \| expired \| invalid \| not_active |
-| `auth_token_family_revoked_total` | counter | `reason` = reuse \| signout_all \| suspension |
+| `account_suspension_total` | counter | `outcome` = suspended \| reactivated \| provider_call_failed |
+| (Keycloak) `LOGIN`, `LOGIN_ERROR`, `REFRESH_TOKEN`, `REFRESH_TOKEN_ERROR`, `SEND_VERIFY_EMAIL`, `VERIFY_EMAIL`, `IDENTITY_PROVIDER_LOGIN`, `IDENTITY_PROVIDER_FIRST_LOGIN` | provider events | shipped to SigNoz via Keycloak's metrics endpoint / event listener |
 | `credit_assessment_total` | counter | `outcome` = eligible \| not_eligible \| invalid, `policy_version` |
 | `credit_assessment_duration_seconds` | histogram | — |
 | `seller_enable_total` | counter | `outcome` = enabled \| incomplete \| not_active \| already |
-| `email_dispatch_seconds` | histogram | `type` = verification |
-| `email_dispatch_total` | counter | `type`, `outcome` = accepted \| failed |
 | `outbox_backlog` | gauge | `feature` = user-onboarding |
 | `outbox_lag_seconds` | histogram | `feature` |
 | `ratelimit_hits_total` | counter | `endpoint` |
 | `onboarding_invariant_violations_total` | counter | `kind` |
-| `password_hash_duration_seconds` | histogram | `op` = hash \| verify (watch Argon2 cost vs CPU) |
+| `jwks_refresh_total` | counter | `outcome` = ok \| failed (a failing refresh is an incident before tokens start being rejected) |
 
 ### 4.3 Metrics backend (decision needed)
 
@@ -128,7 +131,7 @@ App Platform's built-in monitoring covers CPU, memory and restarts only, and doe
 
 ### 4.4 Validation before launch (§8.4)
 
-A k6 scenario covering register, sign-in and refresh at the expected peak (assume 5 registrations/min and 50 sign-ins/min for launch, to be confirmed) run against a staging App Platform app. It must show the latency SLOs hold with Argon2id at the chosen cost on 1 vCPU; if not, lower the cost or size up the instance before launch, not after.
+A k6 scenario covering Keycloak sign-in (password grant only for the load test client), token refresh and `GET /api/v1/me` at the expected peak (assume 5 registrations/min and 50 sign-ins/min for launch, to be confirmed) run against a staging App Platform app and a staging Keycloak. It must show the Keycloak instance size (1 GB) holds the dependency targets and that JWKS caching keeps app-side validation overhead under its target.
 
 ## 5. Dashboard
 
@@ -139,7 +142,8 @@ One "Onboarding" dashboard with four rows: funnel counters and conversion; per-s
 | Proposed issue | Milestone | Depends on |
 |---|---|---|
 | SLO-1 Micrometer + Prometheus `/metrics`, JSON logs with correlation id | M2 | #26 (merged) |
-| SLO-2 Onboarding business metrics and invariant counters | M2 | SLO-1, each of #19–#24 |
+| SLO-2 Onboarding business metrics and invariant counters | M2 | SLO-1, #20–#24 |
+| SLO-2b Keycloak metrics/events into SigNoz (metrics endpoint + event listener), external probe of OIDC discovery | M2 | #19, SLO-3 |
 | SLO-3 Metrics backend decision and remote write from App Platform | M2 | SLO-1 |
 | SLO-4 Burn-rate alert rules and onboarding dashboard | M6 or M7 | SLO-2, SLO-3 |
 | SLO-5 k6 load test for register / sign-in / refresh against staging | M7 | #19, #21, #22 |
@@ -147,6 +151,6 @@ One "Onboarding" dashboard with four rows: funnel counters and conversion; per-s
 ## 7. Open questions
 
 1. Expected launch traffic, to size the low-traffic alert guards and the load test.
-2. Argon2id parameters (memory, iterations, parallelism) for 1 vCPU; they set the register and sign-in latency floor.
+2. Keycloak instance size and its password-hashing cost; they set the sign-in latency floor. Keycloak availability caps the product's effective availability, so its SLO must be at least the API's.
 3. Which email provider, since its acceptance latency bounds the dispatch SLO.
 4. Whether `/metrics` is exposed through App Platform internal routing or pushed, which decides between options 1 and 2 in §4.3.
