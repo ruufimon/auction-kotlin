@@ -1,0 +1,107 @@
+{
+  "realm": "gavel",
+  "displayName": "Gavel",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": true,
+  "registrationEmailAsUsername": true,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "verifyEmail": true,
+  "resetPasswordAllowed": true,
+  "rememberMe": false,
+  "editUsernameAllowed": false,
+  "passwordPolicy": "length(12) and maxLength(128) and notUsername and notEmail",
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "failureFactor": 5,
+  "waitIncrementSeconds": 60,
+  "maxFailureWaitSeconds": 900,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "revokeRefreshToken": true,
+  "refreshTokenMaxReuse": 0,
+  "actionTokenGeneratedByUserLifespan": 86400,
+  "smtpServer": {
+    "host": "mailpit",
+    "port": "1025",
+    "from": "no-reply@gavel.local",
+    "fromDisplayName": "Gavel",
+    "auth": "false",
+    "ssl": "false",
+    "starttls": "false"
+  },
+  "clients": [
+    {
+      "clientId": "gavel-web",
+      "name": "Gavel web app",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://localhost:3000/*", "http://localhost:8787/*"],
+      "webOrigins": ["http://localhost:3000", "http://localhost:8787"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:3000/*##http://localhost:8787/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "gavel-api audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "gavel-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "gavel-dev-cli",
+      "name": "Local development only: password grant for curl and scripts. Never add to a deployed realm.",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "protocolMappers": [
+        {
+          "name": "gavel-api audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "gavel-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "buyer@gavel.local",
+      "email": "buyer@gavel.local",
+      "firstName": "Dev",
+      "lastName": "Buyer",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "dev-password-buyer", "temporary": false }]
+    },
+    {
+      "username": "unverified@gavel.local",
+      "email": "unverified@gavel.local",
+      "firstName": "Dev",
+      "lastName": "Unverified",
+      "enabled": true,
+      "emailVerified": false,
+      "credentials": [{ "type": "password", "value": "dev-password-unverified", "temporary": false }]
+    }
+  ]
+}

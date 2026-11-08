@@ -1,5 +1,3 @@
-version: '3.8'
-
 # Development compose with PostgreSQL and API services
 # Usage: docker-compose -f docker-compose.dev.yml up
 
@@ -23,6 +21,47 @@ services:
     networks:
       - auction-network
 
+  # Identity provider for local development (issue #19). Realm as code in
+  # deploy/keycloak/gavel-realm.dev.json, imported on first start. No volume: the
+  # realm and any users you register reset when the container is recreated.
+  # Admin console: http://localhost:8180/admin (admin / admin)
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0.7
+    container_name: auction-keycloak-dev
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      # Fixed public URL so the token issuer is http://localhost:8180/realms/gavel
+      # whether Keycloak is reached from the host or from another container.
+      KC_HOSTNAME: http://localhost:8180
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HEALTH_ENABLED: "true"
+    ports:
+      - "8180:8080"
+    volumes:
+      - ./deploy/keycloak:/opt/keycloak/data/import:ro
+    depends_on:
+      - mailpit
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/9000 && printf 'GET /health/ready HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q UP <&3"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    networks:
+      - auction-network
+
+  # Catches the verification and password-reset emails Keycloak sends.
+  # Inbox: http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:v1.21.8
+    container_name: auction-mailpit-dev
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    networks:
+      - auction-network
+
   api:
     build:
       context: .
@@ -31,6 +70,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      keycloak:
+        condition: service_healthy
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
@@ -38,12 +79,19 @@ services:
       DB_USER: auction
       DB_PASSWORD: dev-password
       SERVER_PORT: 8080
+      # Tokens carry the public issuer; keys are fetched over the compose network.
+      OIDC_ISSUER: http://localhost:8180/realms/gavel
+      OIDC_JWKS_URL: http://keycloak:8080/realms/gavel/protocol/openid-connect/certs
     ports:
       - "8080:8080"
     networks:
       - auction-network
 
   web:
+    # Same build as docker-compose.yml so this file also works on its own.
+    build:
+      context: .
+      dockerfile: web/Dockerfile
     # Override the default command to enable dev mode
     command: npm run dev
     
@@ -85,6 +133,9 @@ networks:
 #
 # To only run the database:
 #   docker-compose -f docker-compose.dev.yml up postgres
+#
+# Database + Keycloak + Mailpit, with the API on the host (./gradlew :app:run):
+#   docker compose -f docker-compose.dev.yml up -d postgres keycloak mailpit
 #
 # To rebuild:
 #   docker-compose -f docker-compose.dev.yml down
