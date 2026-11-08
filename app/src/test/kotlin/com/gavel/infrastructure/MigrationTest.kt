@@ -66,7 +66,7 @@ class MigrationTest {
     @Test
     fun `all feature migrations apply and create the expected tables`() {
         val first = FlywayConfig.runMigrations(dataSource)
-        assertEquals(10, first.migrationsExecuted, "every migration file should be picked up")
+        assertEquals(11, first.migrationsExecuted, "every migration file should be picked up")
 
         val tables = dataSource.connection.use { conn ->
             conn.createStatement().use { st ->

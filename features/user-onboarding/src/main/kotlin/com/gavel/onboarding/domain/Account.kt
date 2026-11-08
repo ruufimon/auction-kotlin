@@ -61,6 +61,11 @@ data class Account(
     val emailVerified: Boolean,
     val displayName: String?,
     val state: AccountState,
+    /**
+     * The name the identity provider last reported. The display name follows the provider only
+     * when this changes, so a name edited in Gavel survives later requests (USR-007, USR-013).
+     */
+    val providerDisplayName: String? = displayName,
     val phone: String? = null,
     val shippingAddress: Address? = null,
     val sellerProfile: Map<String, String> = emptyMap(),
@@ -84,7 +89,8 @@ data class Account(
 
     /**
      * Applies what the provider says on this request: a verified email advances a
-     * PENDING_VERIFICATION account; email and display name follow the token (USR-013).
+     * PENDING_VERIFICATION account; the email follows the token, and the display name follows it
+     * only when the provider reports a different name than before (USR-013).
      */
     fun syncClaims(claims: IdentityClaims, now: Instant): AccountChange {
         var next = this
@@ -97,7 +103,9 @@ data class Account(
             events += EmailVerifiedV1(userId.value, claims.email.value, now.toString())
         }
         if (claims.email != email) next = next.copy(email = claims.email)
-        if (claims.displayName != null && claims.displayName != displayName) next = next.copy(displayName = claims.displayName)
+        if (claims.displayName != null && claims.displayName != providerDisplayName) {
+            next = next.copy(displayName = claims.displayName, providerDisplayName = claims.displayName)
+        }
         return if (next == this) AccountChange(this, emptyList()) else AccountChange(next.touched(now), events)
     }
 
