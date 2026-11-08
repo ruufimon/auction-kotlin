@@ -1,0 +1,111 @@
+/* Gavel login theme: design canvas screens 1-4 on top of Keycloak's PatternFly login theme. */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap");
+
+:root {
+  --g-bg: #F6F7F9; --g-surface: #FFFFFF; --g-surface-muted: #F0F2F5; --g-text: #16202A; --g-muted: #5B6673;
+  --g-border: #D9DEE5; --g-border-strong: #9AA4AF; --g-primary: #1F5FBF; --g-primary-hover: #174A96; --g-on-primary: #FFFFFF;
+  --g-danger: #B42318; --g-danger-soft: #FDECEA; --g-success: #1D5A33; --g-success-soft: #E6F4EA; --g-info-soft: #E8F0FB; --g-warning-soft: #FFF4DB;
+  --pf-global--primary-color--100: var(--g-primary);
+  --pf-global--primary-color--200: var(--g-primary-hover);
+  --pf-global--link--Color: var(--g-primary);
+  --pf-global--link--Color--hover: var(--g-primary-hover);
+  --pf-global--FontFamily--sans-serif: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --pf-global--FontFamily--heading--sans-serif: "Space Grotesk", Inter, system-ui, sans-serif;
+  --pf-global--BorderRadius--sm: 8px;
+  --pf-global--Color--100: var(--g-text);
+  --pf-global--Color--200: var(--g-muted);
+  --pf-global--BackgroundColor--100: var(--g-surface);
+  --pf-global--danger-color--100: var(--g-danger);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --g-bg: #0F151C; --g-surface: #17202A; --g-surface-muted: #1E2935; --g-text: #E8EDF2; --g-muted: #A3AEBA;
+    --g-border: #2C3947; --g-border-strong: #4A5868; --g-primary: #6EA0F0; --g-primary-hover: #93B9F5; --g-on-primary: #0F151C;
+    --g-danger: #F28B82; --g-danger-soft: #3A1E1C; --g-success: #7BCB95; --g-success-soft: #16301F; --g-info-soft: #1B2B44; --g-warning-soft: #3A2D12;
+    color-scheme: dark;
+  }
+}
+
+html.login-pf, .login-pf body { background: var(--g-bg) !important; color: var(--g-text); font-family: var(--pf-global--FontFamily--sans-serif); }
+.login-pf-page { padding-top: 40px; padding-bottom: 48px; }
+.login-pf-page .login-pf-page-header { margin-bottom: 20px; }
+#kc-header-wrapper { padding: 0; font-size: 22px; letter-spacing: 0; text-transform: none; color: var(--g-text); white-space: normal; }
+.gavel-brand { display: inline-flex; align-items: center; gap: 10px; font-family: "Space Grotesk", Inter, sans-serif; font-weight: 600; color: var(--g-text); }
+/* Keycloak sanitizes markup in messages, so the logo is drawn with a CSS mask. */
+.gavel-brand::before {
+  content: ""; width: 28px; height: 28px; background: var(--g-primary);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Cpath d='M6 20l8-8M10 8l6 6M4 24h12' stroke='black' stroke-width='2.5' stroke-linecap='round' fill='none'/%3E%3Cpath d='M14 4l8 8-3 3-8-8z'/%3E%3C/svg%3E") center / contain no-repeat;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Cpath d='M6 20l8-8M10 8l6 6M4 24h12' stroke='black' stroke-width='2.5' stroke-linecap='round' fill='none'/%3E%3Cpath d='M14 4l8 8-3 3-8-8z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.login-pf-page .card-pf {
+  max-width: 460px; margin: 0 auto; padding: 28px; border: 1px solid var(--g-border); border-top: 1px solid var(--g-border);
+  border-radius: 12px; box-shadow: none; background: var(--g-surface); color: var(--g-text);
+}
+@media (max-width: 480px) { .login-pf-page .card-pf { padding: 20px 16px; border-left: 0; border-right: 0; border-radius: 0; } }
+.login-pf-page .login-pf-header { margin-bottom: 16px; display: flex; flex-direction: column-reverse; gap: 4px; }
+.login-pf-page .login-pf-header > div, .login-pf-page .login-pf-header .col-md-10 { width: 100%; float: none; padding: 0; margin: 0; }
+.login-pf-page .login-pf-header .subtitle, .login-pf-page .login-pf-header .subtitle * { text-align: left; padding: 0; margin: 0; }
+#kc-page-title { font-family: "Space Grotesk", Inter, sans-serif; font-size: 28px; font-weight: 600; text-align: left; margin: 0; color: var(--g-text); }
+.login-pf-page #kc-content-wrapper, .login-pf-page .card-pf form { color: var(--g-text); }
+.login-pf-page .form-group { margin-bottom: 18px; }
+.login-pf-page label, .pf-c-form__label-text { font-size: 14px; font-weight: 600; color: var(--g-text); }
+.login-pf-page .required { color: var(--g-danger); }
+.subtitle { color: var(--g-muted); font-size: 13px; }
+
+.login-pf-page .pf-c-form-control, .login-pf-page input[type=text], .login-pf-page input[type=email], .login-pf-page input[type=password] {
+  height: 44px; padding: 0 12px; border: 1px solid var(--g-border); border-radius: 8px; font-size: 15px; color: var(--g-text);
+  background: var(--g-surface); box-shadow: none;
+}
+.login-pf-page .pf-c-form-control:hover { border-color: var(--g-border-strong); }
+.login-pf-page .pf-c-form-control:focus { outline: 3px solid var(--g-primary); outline-offset: 1px; border-color: var(--g-primary); }
+.login-pf-page .pf-c-form-control[aria-invalid=true] { border-color: var(--g-danger); }
+.login-pf-page .pf-c-input-group .pf-c-form-control { border-radius: 8px 0 0 8px; }
+.login-pf-page .pf-c-button.pf-m-control { border: 1px solid var(--g-border); border-left: 0; border-radius: 0 8px 8px 0; background: var(--g-surface); color: var(--g-muted); }
+.login-pf-page .pf-c-button.pf-m-control::after { display: none; }
+.login-pf-page .pf-c-input-group { background: transparent; }
+.login-pf-page .pf-c-input-group .pf-c-form-control[aria-invalid=true] + .pf-c-button.pf-m-control { border-color: var(--g-danger); }
+
+/* Links under the card ("New to Gavel?", resend) sit on the page, not in a gray box. */
+.login-pf-page #kc-info, .login-pf-page #kc-info-wrapper, .login-pf-page .login-pf-signup {
+  background: transparent !important; border: 0 !important; box-shadow: none; color: var(--g-muted); font-size: 14px;
+  max-width: 460px; margin: 0 auto; padding: 16px 0 0;
+}
+
+.login-pf-page .pf-c-button.pf-m-primary, .login-pf-page input.pf-c-button.pf-m-primary {
+  height: 46px; border-radius: 8px; background: var(--g-primary); color: var(--g-on-primary); font-weight: 600; font-size: 15px; border: 0;
+}
+.login-pf-page .pf-c-button.pf-m-primary:hover { background: var(--g-primary-hover); }
+.login-pf-page .pf-c-button:focus-visible, .login-pf-page a:focus-visible { outline: 3px solid var(--g-primary); outline-offset: 2px; }
+.login-pf-page a { color: var(--g-primary); }
+.login-pf-page a:hover { color: var(--g-primary-hover); }
+
+/* "Continue with Google" and other providers */
+#kc-social-providers { margin-top: 20px; }
+#kc-social-providers hr { border-color: var(--g-border); }
+#kc-social-providers h2 { font-size: 13px; color: var(--g-muted); font-weight: 400; text-align: center; }
+.login-pf-page .kc-social-item, .login-pf-page a.pf-c-button.pf-m-control.kc-social-item {
+  height: 46px; border: 1px solid var(--g-border); border-radius: 8px; background: var(--g-surface); color: var(--g-text); font-weight: 600;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+}
+.login-pf-page .kc-social-item:hover { border-color: var(--g-border-strong); }
+.kc-social-gray { color: var(--g-text) !important; }
+
+/* Registration */
+.gavel-password-hints { margin: 8px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--g-muted); }
+.gavel-password-hints li::before { content: "•"; margin-right: 8px; color: var(--g-border-strong); }
+.gavel-terms-note { font-size: 13px; color: var(--g-muted); margin: 0 0 12px; }
+#kc-form-options a { font-size: 14px; }
+#kc-registration, #kc-registration-container { color: var(--g-muted); }
+.login-pf-page .login-pf-signup { font-size: 14px; }
+
+/* Feedback */
+.login-pf-page .pf-c-alert { border-radius: 8px; border: 1px solid transparent; box-shadow: none; background: var(--g-info-soft); color: var(--g-text); }
+.login-pf-page .pf-c-alert.pf-m-danger, .login-pf-page .alert-error { background: var(--g-danger-soft); border-color: color-mix(in srgb, var(--g-danger) 35%, transparent); }
+.login-pf-page .pf-c-alert.pf-m-success, .login-pf-page .alert-success { background: var(--g-success-soft); }
+.login-pf-page .pf-c-alert.pf-m-warning, .login-pf-page .alert-warning { background: var(--g-warning-soft); }
+.login-pf-page .pf-c-alert__title, .kc-feedback-text { color: var(--g-text); font-weight: 500; }
+.login-pf-page .pf-c-form__helper-text.pf-m-error { color: var(--g-danger); font-size: 13px; }
+#kc-info-message p, .instruction { color: var(--g-text); font-size: 15px; line-height: 1.5; }
+#kc-locale { display: none; }
