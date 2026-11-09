@@ -3,6 +3,10 @@ import { KEYCLOAK, operator, registerAndVerify, registerAtKeycloak, signInAtKeyc
 
 test.describe("onboarding", () => {
   test("protected pages send anonymous visitors to Keycloak sign-in", async ({ page }) => {
+    for (const path of ["/onboarding/eligibility", "/sell"]) {
+      await page.goto(path);
+      await expect(page, path).toHaveURL(new RegExp(`^${KEYCLOAK}/realms/gavel/protocol/openid-connect/auth`));
+    }
     await page.goto("/profile");
     await expect(page).toHaveURL(new RegExp(`^${KEYCLOAK}/realms/gavel/protocol/openid-connect/auth`));
     const url = new URL(page.url());
@@ -41,6 +45,11 @@ test.describe("onboarding", () => {
     await page.reload();
     await expect(page.getByLabel("Display name")).toHaveValue("Mina the Tester");
 
+    // The seller area is seller-only: an active buyer is sent to seller setup.
+    await page.getByRole("navigation", { name: "Primary" }).getByRole("link", { name: "Sell" }).click();
+    await expect(page).toHaveURL(/\/profile\/seller$/);
+    await page.goto("/profile");
+
     await page.getByRole("link", { name: "Set up seller profile" }).click();
     await expect(page.getByRole("heading", { name: "Start selling on Gavel" })).toBeVisible();
     const enable = page.getByRole("button", { name: /Enable selling/ });
@@ -59,6 +68,11 @@ test.describe("onboarding", () => {
 
     await expect(page).toHaveURL(/\/profile\?seller=enabled$/);
     await expect(page.getByText("Selling enabled", { exact: true })).toBeVisible();
+
+    await page.getByRole("link", { name: "Go to your seller area" }).click();
+    await expect(page).toHaveURL(/\/sell$/);
+    await expect(page.getByRole("heading", { name: "Your seller area" })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Primary" }).getByRole("link", { name: "Sell" })).toHaveAttribute("aria-current", "page");
 
     await page.getByRole("button", { name: "Sign out" }).first().click();
     await expect(page).toHaveURL(/\/signed-out\?reason=SIGNED_OUT$/);

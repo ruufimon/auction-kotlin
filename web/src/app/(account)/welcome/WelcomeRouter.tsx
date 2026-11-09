@@ -2,7 +2,8 @@
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount } from "@/components/AccountProvider";
-import { homeFor, PageSkeleton } from "@/components/AccountGate";
+import { PageSkeleton } from "@/components/AccountGate";
+import { homeFor } from "@/lib/routes";
 import { Alert } from "@/components/Alert";
 import { signOut } from "@/components/signOut";
 

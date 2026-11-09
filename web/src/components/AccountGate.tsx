@@ -4,40 +4,32 @@ import { useRouter } from "next/navigation";
 import { useAccount } from "./AccountProvider";
 import { Alert } from "./Alert";
 import { signOut } from "./signOut";
-import type { Account, AccountState } from "@/lib/api/types";
+import type { Account } from "@/lib/api/types";
+import { gateDecision, type GateRule } from "@/lib/routes";
 
-/** Where each account state belongs after sign-in (issue #30). */
-export function homeFor(state: AccountState): string {
-  switch (state) {
-    case "PENDING_VERIFICATION": return "/verify-email";
-    case "PENDING_CREDIT_ELIGIBILITY": return "/onboarding/eligibility";
-    case "ACTIVE": return "/marketplace";
-    case "SUSPENDED": return "/signed-out?reason=ACCOUNT_SUSPENDED";
-  }
-}
+export { homeFor } from "@/lib/routes";
 
 /**
- * Renders children once the account is loaded and in an allowed state. Other states are sent
- * to their own page; a suspended account is signed out with an explanation (issue #31).
+ * Renders children once the account is loaded and the page's rule (src/lib/routes.ts) lets it in.
+ * Other states are sent to their own page; a suspended account is signed out with an explanation (issue #31);
+ * seller-only pages send accounts without selling enabled to seller setup (issue #27).
  */
-export function AccountGate({ allow, redirect, children }: {
-  allow?: AccountState[];
-  /** Overrides where a disallowed state goes, e.g. the eligibility page sends a newly ACTIVE account to its profile. */
-  redirect?: Partial<Record<AccountState, string>>;
+export function AccountGate({ allow, seller, redirect, children }: GateRule & {
   children: (account: Account) => ReactNode;
 }) {
   const state = useAccount();
   const router = useRouter();
   const leaving = useRef(false);
-  const accountState = state.account?.accountState;
-  const allowed = !!accountState && (!allow || allow.includes(accountState));
+  const decision = state.account ? gateDecision(state.account, { allow, seller, redirect }) : null;
+  const target = decision?.kind === "redirect" ? decision.to : decision?.kind ?? null;
+  const allowed = target === "render";
 
   useEffect(() => {
-    if (!accountState || allowed || leaving.current) return;
+    if (!target || target === "render" || leaving.current) return;
     leaving.current = true;
-    if (accountState === "SUSPENDED") signOut("ACCOUNT_SUSPENDED");
-    else router.replace(redirect?.[accountState] ?? homeFor(accountState));
-  }, [accountState, allowed, router, redirect]);
+    if (target === "signOut") signOut("ACCOUNT_SUSPENDED");
+    else router.replace(target);
+  }, [target, router]);
 
   useEffect(() => {
     if (state.status === "error" && state.error.code === "ACCOUNT_SUSPENDED" && !leaving.current) {

@@ -102,7 +102,7 @@ function Setup({ account }: { account: Account }) {
         <h1>Start selling on Gavel</h1>
         <p className="lead">Your buyer account becomes a seller account once these details are complete. Nothing else to register, and you keep bidding as usual.</p>
       </div>
-      {account.sellerEnabled && <Alert kind="success" title="Selling is enabled">You can update these details at any time.</Alert>}
+      {account.sellerEnabled && <Alert kind="success" title="Selling is enabled">You can update these details at any time. <Link href="/sell">Go to your seller area</Link></Alert>}
       <div className="profile-layout">
         <form className="stack-lg" onSubmit={submit} noValidate>
           <section className="card" aria-labelledby="seller-h">

@@ -25,7 +25,7 @@ export function ProfileView({ activated, sellerEnabled }: { activated: boolean; 
             </p>
           </div>
           {activated && account.accountState === "ACTIVE" && <Alert kind="success" title="You’re in">The eligibility check passed and your account is active.</Alert>}
-          {sellerEnabled && account.sellerEnabled && <Alert kind="success" title="Selling enabled">You can now list items from this same account.</Alert>}
+          {sellerEnabled && account.sellerEnabled && <Alert kind="success" title="Selling enabled">You can now list items from this same account. <Link href="/sell">Go to your seller area</Link></Alert>}
           <StatusBanner account={account} />
           <div className="profile-layout">
             <div className="stack-lg">

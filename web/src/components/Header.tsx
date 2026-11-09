@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Logo } from "./Logo";
+import { NavLink } from "./NavLink";
 import { SignOutButton } from "./SignOutButton";
 import type { SessionUser } from "@/lib/server/session";
 
@@ -10,8 +11,9 @@ export function Header({ user }: { user: SessionUser | null }) {
       <div className="container header-inner">
         <Link href="/" className="brand"><Logo />Gavel</Link>
         <nav aria-label="Primary" className="nav">
-          <Link href="/marketplace">Browse</Link>
-          <Link href={user ? "/profile/seller" : "/auth/login?returnTo=/profile/seller"} prefetch={false}>Sell</Link>
+          <NavLink href="/marketplace">Browse</NavLink>
+          {/* Signed-in users go to the seller area; it sends accounts without selling enabled to seller setup. */}
+          <NavLink href={user ? "/sell" : "/auth/login?returnTo=/sell"} section="/sell">Sell</NavLink>
         </nav>
         <div className="header-actions">
           {user ? (
