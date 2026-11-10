@@ -49,6 +49,17 @@ describe("ensureSession", () => {
     expect(await ensureSession(jar({ t: "at", e: NOW + 60_000 }, rt()), true, NOW)).toMatchObject({ refreshed: true });
   });
 
+  it("refreshes once when several requests get TOKEN_EXPIRED at the same time", async () => {
+    let release!: (v: ReturnType<typeof fresh>) => void;
+    refreshTokens.mockReturnValue(new Promise((r) => { release = r; }));
+    const cookies = jar({ t: "at", e: NOW + 60_000 }, rt());
+    const pending = [1, 2, 3].map(() => ensureSession(cookies, true, NOW));
+    release(fresh());
+    const results = await Promise.all(pending);
+    expect(refreshTokens).toHaveBeenCalledTimes(1);
+    for (const r of results) expect(r).toMatchObject({ kind: "valid", refreshed: true, tokens: { accessToken: "new-at" } });
+  });
+
   it("ends the session when the refresh cookie has expired", async () => {
     expect(await ensureSession(jar(null, { t: "rt-old", e: NOW - 1 }), false, NOW)).toEqual({ kind: "expired", reason: "SESSION_EXPIRED" });
     expect(refreshTokens).not.toHaveBeenCalled();

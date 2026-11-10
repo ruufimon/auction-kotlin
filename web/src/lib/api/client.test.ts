@@ -35,6 +35,29 @@ describe("api client", () => {
     expect(onSessionExpired).toHaveBeenCalledWith("SESSION_EXPIRED");
   });
 
+  it("sends the user to sign-in only once when several requests lose the session together", async () => {
+    const onSessionExpired = vi.fn();
+    const fetchImpl = vi.fn(async () => json(401, { code: "SESSION_EXPIRED", message: "", details: [] }));
+    const client = createApiClient({ fetchImpl, onSessionExpired });
+    await Promise.allSettled([client.me(), client.getProfile("usr_1"), client.enableSeller("usr_1")]);
+    expect(onSessionExpired).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends the Idempotency-Key header on commands", async () => {
+    const fetchImpl = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) => json(201, { bidId: "bid_1" }));
+    const client = createApiClient({ fetchImpl });
+    await client.send("POST", "/auctions/a1/bids", { body: { amount: 1500 }, idempotencyKey: "key-1" });
+    const init = fetchImpl.mock.calls[0][1]!;
+    expect((init.headers as Record<string, string>)["Idempotency-Key"]).toBe("key-1");
+    expect(JSON.parse(String(init.body))).toEqual({ amount: 1500 });
+  });
+
+  it("refuses an idempotency key on reads, where it has no meaning", async () => {
+    const fetchImpl = vi.fn(async () => json(200, {}));
+    await expect(createApiClient({ fetchImpl }).send("GET", "/me", { idempotencyKey: "key-1" })).rejects.toThrow(/idempotency/i);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   it("does not treat a 403 account-state refusal as a lost session", async () => {
     const onSessionExpired = vi.fn();
     const fetchImpl = vi.fn(async () => json(403, { code: "ACCOUNT_SUSPENDED", message: "", details: [] }));

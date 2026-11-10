@@ -27,6 +27,9 @@ async function proxy(req: NextRequest, ctx: { params: Promise<{ path: string[] }
     const headers: Record<string, string> = { Authorization: `Bearer ${token}`, Accept: "application/json" };
     const contentType = req.headers.get("content-type");
     if (contentType) headers["Content-Type"] = contentType;
+    // Commands that create financial or auction state carry the browser's key so retries apply once.
+    const idempotencyKey = req.headers.get("idempotency-key");
+    if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
     const requestId = req.headers.get("x-request-id");
     if (requestId) headers["X-Request-Id"] = requestId;
     const forwardedFor = req.headers.get("x-forwarded-for");

@@ -13,6 +13,17 @@ export class ApiError extends Error {
 /** Codes that mean the session is gone: the caller is sent to sign-in. */
 export const SESSION_CODES = new Set(["SESSION_MISSING", "SESSION_EXPIRED", "TOKEN_MISSING", "TOKEN_INVALID", "TOKEN_EXPIRED", "TOKEN_WRONG_AUDIENCE"]);
 
+/** Options for a single call. */
+export interface SendOptions {
+  body?: unknown;
+  /**
+   * For commands that create financial or auction state (requirement §6, BID-012): make the key
+   * once per user action with idempotencyKey() from ./money and reuse it when retrying that action,
+   * so the API returns the first result instead of applying the command twice.
+   */
+  idempotencyKey?: string;
+}
+
 export interface ClientOptions {
   fetchImpl?: typeof fetch;
   /** Called once when the session is gone; default navigates to sign-in. */
@@ -31,9 +42,21 @@ function defaultSessionExpired() {
  */
 export function createApiClient(options: ClientOptions = {}) {
   const fetchImpl = options.fetchImpl ?? ((...args: Parameters<typeof fetch>) => fetch(...args));
-  const onSessionExpired = options.onSessionExpired ?? defaultSessionExpired;
+  const notifySessionExpired = options.onSessionExpired ?? defaultSessionExpired;
+  // Several requests in flight can all find the session gone; send the user to sign-in once.
+  let sessionExpiredNotified = false;
+  const onSessionExpired = (code: string) => {
+    if (sessionExpiredNotified) return;
+    sessionExpiredNotified = true;
+    notifySessionExpired(code);
+  };
 
-  async function request<T>(method: string, path: string, body?: unknown, headers: Record<string, string> = {}): Promise<T> {
+  async function send<T>(method: string, path: string, { body, idempotencyKey }: SendOptions = {}): Promise<T> {
+    const headers: Record<string, string> = {};
+    if (idempotencyKey !== undefined) {
+      if (method === "GET" || method === "HEAD") throw new TypeError(`An idempotency key has no meaning on ${method} ${path}`);
+      headers["Idempotency-Key"] = idempotencyKey;
+    }
     let res: Response;
     try {
       res = await fetchImpl(`/api/v1${path}`, {
@@ -61,10 +84,12 @@ export function createApiClient(options: ClientOptions = {}) {
 
   return {
     /** Bootstraps the account on first call (GET /api/v1/me). */
-    me: () => request<Account>("GET", "/me"),
-    getProfile: (userId: string) => request<Account>("GET", `/profile/${encodeURIComponent(userId)}`),
-    updateProfile: (userId: string, update: ProfileUpdate) => request<Account>("PUT", `/profile/${encodeURIComponent(userId)}`, update),
-    enableSeller: (userId: string) => request<Account>("POST", `/profile/${encodeURIComponent(userId)}/enable-seller`),
+    /** Any /api/v1 call; feature modules (catalog, bidding, settlement) build their typed methods on it. */
+    send,
+    me: () => send<Account>("GET", "/me"),
+    getProfile: (userId: string) => send<Account>("GET", `/profile/${encodeURIComponent(userId)}`),
+    updateProfile: (userId: string, update: ProfileUpdate) => send<Account>("PUT", `/profile/${encodeURIComponent(userId)}`, { body: update }),
+    enableSeller: (userId: string) => send<Account>("POST", `/profile/${encodeURIComponent(userId)}/enable-seller`),
   };
 }
 
