@@ -18,6 +18,7 @@ The API's development defaults already point at this realm: issuer
 |---|---|
 | Admin console | http://localhost:8180/admin (`admin` / `admin`) |
 | Account / login pages | http://localhost:8180/realms/gavel/account |
+| Web app | http://localhost:3000 (`npm run dev` in `web/`) |
 | Mail inbox (verification, password reset) | http://localhost:8025 |
 
 The Keycloak container has no volume. Recreating it re-imports the realm and drops any users you
@@ -53,6 +54,17 @@ on later runs, because the account is already active.
   ports 3000 and 8787. An audience mapper adds `gavel-api` to access tokens.
 - SMTP goes to Mailpit.
 
+## Login theme
+
+`themes/gavel/login` restyles Keycloak's sign-in, registration and email-verification pages to
+the design canvas (issue #30): Gavel colours and type, light and dark mode, password-policy hints
+on registration, and Gavel wording for duplicate emails, expired links and used links. It extends
+the built-in `keycloak` theme, so only `gavel.css`, the messages and `register.ftl` are ours.
+`register.ftl` is a copy of Keycloak 26.0.7's template with the hints added; re-check it when
+upgrading Keycloak. Bump `themeVersion` in `theme.properties` with every change.
+
+`start-dev` disables theme caching, so CSS and message edits show on reload.
+
 ## Dev-only, never in a deployed realm
 
 - Client `gavel-dev-cli` with the password grant.
@@ -63,4 +75,3 @@ on later runs, because the account is already active.
 - Google sign-in. It needs an OAuth client ID and secret, which belong in the deployed realm's
   secrets, not in this file. Add it locally through the admin console under Identity providers if
   you have test credentials.
-- The themed login pages (#30).

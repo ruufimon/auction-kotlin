@@ -67,6 +67,25 @@ class ProfileSteps(private val world: World) {
         update(actor, actor, """{"shippingAddress":{"line1":"$line1","city":"$city","region":"$region","postalCode":"$postalCode","country":"$country"}}""")
     }
 
+    @Given("{string} is called {string} at the identity provider")
+    fun calledAtProvider(email: String, name: String) {
+        world.idp.renameAtProvider(email, name)
+        // The next request carries a fresh token with the new name claim.
+        world.tokensByEmail.remove(email.trim().lowercase())
+    }
+
+    @Given("{string} makes an authenticated request")
+    @When("{string} makes another authenticated request")
+    fun authenticatedRequest(actor: String) {
+        world.call(HttpMethod.Get, "/api/v1/me", token = world.tokenForAlias(actor))
+        assertEquals(200, world.lastResponse!!.status.value, world.lastBodyText)
+    }
+
+    @Then("their display name is {string}")
+    fun displayNameIs(name: String) {
+        assertEquals(name, world.lastJson["displayName"]?.jsonPrimitive?.contentOrNull, world.lastBodyText)
+    }
+
     @Then("reading the profile returns that address")
     fun readingReturnsAddress() {
         val address = readAs("usr_mina", "usr_mina")["shippingAddress"]?.jsonObject

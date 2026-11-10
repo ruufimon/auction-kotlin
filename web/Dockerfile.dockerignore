@@ -1,0 +1,10 @@
+# Build context is the repository root (docker-compose.yml: context ".", dockerfile web/Dockerfile).
+# BuildKit uses this file instead of the root .dockerignore, which excludes web/ for the API image.
+*
+!web/package.json
+!web/package-lock.json
+!web/next.config.ts
+!web/tsconfig.json
+!web/src
+!web/public
+web/src/**/*.test.ts

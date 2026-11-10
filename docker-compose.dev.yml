@@ -40,7 +40,9 @@ services:
     ports:
       - "8180:8080"
     volumes:
-      - ./deploy/keycloak:/opt/keycloak/data/import:ro
+      - ./deploy/keycloak/gavel-realm.dev.json:/opt/keycloak/data/import/gavel-realm.dev.json:ro
+      # Login theme "gavel" (issue #30); start-dev disables theme caching, so edits show on reload.
+      - ./deploy/keycloak/themes/gavel:/opt/keycloak/themes/gavel:ro
     depends_on:
       - mailpit
     healthcheck:
@@ -88,10 +90,11 @@ services:
       - auction-network
 
   web:
-    # Same build as docker-compose.yml so this file also works on its own.
+    # The "deps" stage (Node + installed packages) runs `next dev` against the mounted source.
     build:
       context: .
       dockerfile: web/Dockerfile
+      target: deps
     # Override the default command to enable dev mode
     command: npm run dev
     
@@ -103,10 +106,14 @@ services:
     
     # Expose additional dev port
     ports:
-      - "3000:3000"  # Additional Vite dev server port
+      - "3000:3000"  # Next.js dev server
     
     environment:
       NODE_ENV: development
+      APP_ORIGIN: http://localhost:3000
+      OIDC_ISSUER: http://localhost:8180/realms/gavel
+      OIDC_INTERNAL_ISSUER: http://keycloak:8080/realms/gavel
+      API_ORIGIN: http://api:8080
       # Enable debugging if needed
       # DEBUG: "vinext:*"
     
