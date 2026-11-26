@@ -133,6 +133,18 @@ docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
 See [docker-compose.yml](docker-compose.yml) and
 [WEB_DOCKER_GUIDE.md](WEB_DOCKER_GUIDE.md) for details.
 
+### Run locally with Keycloak
+
+Sign-in uses Keycloak. Start PostgreSQL, a local Keycloak with the `gavel` realm, and Mailpit,
+then run the API on the host:
+
+```bash
+docker compose -f docker-compose.dev.yml up -d postgres keycloak mailpit
+./gradlew :app:run
+```
+
+Seeded users, token commands and URLs are in [deploy/keycloak/README.md](deploy/keycloak/README.md).
+
 ### Health endpoints
 
 - `GET /health/live`: liveness, always `200 OK` while the process runs.

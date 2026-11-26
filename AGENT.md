@@ -306,7 +306,8 @@ Update the expected migration count and tables in `MigrationTest` when you add f
 
 **Step 4: Run locally** (migrations apply on startup)
 ```bash
-docker-compose -f docker-compose.dev.yml up
+docker compose -f docker-compose.dev.yml up -d postgres keycloak mailpit
+./gradlew :app:run   # local Keycloak realm and seeded users: deploy/keycloak/README.md
 psql -h localhost -U auction -d auction_db -c 'SELECT version, description FROM flyway_schema_history;'
 ```
 
