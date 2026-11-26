@@ -8,16 +8,19 @@ services:
       dockerfile: web/Dockerfile
       args:
         NODE_VERSION: "22.13.0"
-        BUILD_ENV: "production"
     container_name: gavel-web
     ports:
       - "8787:8787"
     environment:
-      NODE_ENV: production
-      # Add environment variables as needed:
-      # NEXT_PUBLIC_API_URL: http://localhost:8080
+      # Local-stack values; production must set all of these (web/README.md).
+      APP_ORIGIN: http://localhost:8787
+      OIDC_ISSUER: http://localhost:8180/realms/gavel
+      OIDC_INTERNAL_ISSUER: http://keycloak:8080/realms/gavel
+      API_ORIGIN: http://api:8080
+      # Allows the development session secret in this local compose file only.
+      GAVEL_ALLOW_DEV_DEFAULTS: "true"
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8787', (res) => { if (res.statusCode !== 200 && res.statusCode !== 404) throw new Error(res.statusCode); })"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8787/"]
       interval: 30s
       timeout: 10s
       retries: 3

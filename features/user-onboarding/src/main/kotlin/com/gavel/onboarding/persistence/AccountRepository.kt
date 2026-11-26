@@ -49,6 +49,7 @@ object AccountsTable : Table("users") {
     val emailVerified = bool("email_verified")
     val emailVerifiedAt = timestamp("email_verified_at").nullable()
     val displayName = varchar("display_name", 255).nullable()
+    val providerDisplayName = varchar("provider_display_name", 255).nullable()
     val status = varchar("status", 32)
     val sellerEnabled = bool("seller_enabled")
     val sellerEnabledAt = timestamp("seller_enabled_at").nullable()
@@ -108,6 +109,7 @@ class ExposedAccountRepository(private val cipher: FieldCipher) : AccountReposit
         row[AccountsTable.email] = account.email.value
         row[AccountsTable.emailVerified] = account.emailVerified
         row[AccountsTable.displayName] = account.displayName
+        row[AccountsTable.providerDisplayName] = account.providerDisplayName
         row[AccountsTable.status] = account.state.dbValue
         row[AccountsTable.sellerEnabled] = account.sellerEnabled
         row[AccountsTable.sellerEnabledAt] = account.sellerEnabledAt
@@ -138,6 +140,7 @@ class ExposedAccountRepository(private val cipher: FieldCipher) : AccountReposit
         email = Email.of(this[AccountsTable.email]),
         emailVerified = this[AccountsTable.emailVerified],
         displayName = this[AccountsTable.displayName],
+        providerDisplayName = this[AccountsTable.providerDisplayName],
         state = AccountState.fromDb(this[AccountsTable.status]),
         phone = this[AccountsTable.phone],
         shippingAddress = this[AccountsTable.shippingAddress]?.let { json.decodeFromString(AddressDocument.serializer(), it).toAddress() },

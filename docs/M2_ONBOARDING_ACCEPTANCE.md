@@ -55,3 +55,24 @@ need the real realm, another milestone's endpoints or a browser. 59 scenarios pa
 application; `@provider` (19), `@cross-feature` (12), `@ui` (8) and `@wip` (1: SigNoz visibility of
 abuse events) are excluded until #19, M3–M5, #42 and the logs pipeline exist. Harness details:
 `features/user-onboarding/src/test/resources/acceptance/README.md`.
+
+## Status (2026-11-08): web app
+
+The web app (`web/`) and the Keycloak login theme are built. The `@ui` scenarios stay out of the
+Cucumber run; their behaviour is checked by Playwright in `web/e2e` against the real local stack
+(Keycloak, Mailpit, PostgreSQL, API):
+
+| `@ui` scenario | Playwright coverage |
+|---|---|
+| Registration page offers Google and email with inline errors | `onboarding.spec.ts` registration and verification; Google button needs an OAuth client (not yet configured) |
+| Post-login routing by account state | `onboarding.spec.ts` journey (pending eligibility → assessment, active → profile), suspended test |
+| The assessment form explains privacy and validates before submit | `onboarding.spec.ts` validation test |
+| The profile page shows the account status banner | `onboarding.spec.ts` journey and failed-check test (ACTIVE, NOT_ELIGIBLE with reason) |
+| The seller page shows readiness and keeps enable disabled until complete | `onboarding.spec.ts` journey |
+| The web app maps provider and application errors to messages | `onboarding.spec.ts`, unit tests in `web/src/lib/api` |
+| A suspended user is signed out with an explanation | `onboarding.spec.ts` suspended test |
+| The web app refreshes transparently and handles revocation | `session.spec.ts` |
+
+Two scenarios were added to `profile.feature` (USR-013) after the browser tests found that a display
+name edited in Gavel was overwritten on the next request: the account now follows the provider's
+name only when the provider reports a change.

@@ -56,6 +56,9 @@ class TestIdentityProvider(
         else registerGoogleUser(email, displayName)
     }
 
+    /** The user edits their name at the provider (account console or Google profile). */
+    fun renameAtProvider(email: String, displayName: String): User = upsert(user(email).copy(displayName = displayName))
+
     fun markEmailVerified(email: String): User {
         val u = user(email)
         return upsert(u.copy(emailVerified = true))

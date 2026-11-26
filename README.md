@@ -42,14 +42,12 @@ This codebase was restructured to align with AFA principles:
 - Gradle configuration ensures forbidden dependencies fail at build time
 
 **Frontend (Next.js):**
-- `web/features/` — Feature-based organization:
-  - `features/user-onboarding/`
-  - `features/marketplace/`
-- `web/shared/` — Reusable utilities and components
-- TypeScript path aliases enforce clear boundaries
+- `web/src/app/` — Pages and route handlers (sign-in, API proxy, onboarding screens)
+- `web/src/lib/` — Typed API client, error codes, money helpers, server-side session
+- `web/src/components/` — Shared UI components
 
 See [AGENT.md](AGENT.md) for the complete AFA specification and
-[RESTRUCTURING.md](RESTRUCTURING.md) for migration details.
+[web/README.md](web/README.md) for the web app.
 
 ## Project structure
 
@@ -62,26 +60,15 @@ See [AGENT.md](AGENT.md) for the complete AFA specification and
 │   ├── bidding/
 │   └── settlement/
 ├── app/                         Application entry point
-├── web/                         Next.js web frontend
-│   ├── features/               Feature-based organization
-│   │   ├── user-onboarding/
-│   │   └── marketplace/
-│   └── shared/                 Reusable utilities
+├── web/                         Next.js web app (src/app, src/lib, src/components, e2e)
+├── deploy/keycloak/             Local Keycloak realm and the Gavel login theme
 ├── AGENT.md                    AFA specification
-├── RESTRUCTURING.md            Backend restructuring details
-├── web/RESTRUCTURING.md        Frontend restructuring details
 └── requirement.md              Product and technical requirements
 ```
 
 The backend is organized by feature under `features/`, with shared domain types
-in `kernel/`. The frontend is grouped by business domain under `web/features/`.
-Both follow AFA principles for clear, navigable architecture.
-
-## Frontend restructuring
-
-The frontend is organized by business domain. Bidder registration and seller
-enablement share the `user-onboarding` feature, while auction discovery and
-bidding presentation live in `marketplace`.
+in `kernel/`. The web app talks to the API only through its typed client and
+same-origin proxy, so it never handles tokens in the browser.
 
 ## Run the API
 
@@ -172,55 +159,21 @@ commit secret values.
 
 ## Run the web app
 
-Requirements: Node.js 22.13 or newer and npm.
+Requirements: Node.js 22.13 or newer, and the local stack from
+[Run locally with Keycloak](#run-locally-with-keycloak) (PostgreSQL, Keycloak, Mailpit, API).
 
 ```bash
 cd web
 npm install
-npm run dev
+npm run dev        # http://localhost:3000
 ```
 
-Open `http://localhost:3000` in a browser.
+Create an account from the home page. Keycloak sends the verification email to
+Mailpit at `http://localhost:8025`. After verifying, the app walks through the
+eligibility check, profile, and seller setup. Details, settings and the Docker
+image are in [web/README.md](web/README.md).
 
-### Run the web app with Docker
-
-```bash
-# Using the build script
-./scripts/docker-web.sh build
-./scripts/docker-web.sh run
-
-# Or using Docker directly
-docker build -t gavel-web -f web/Dockerfile .
-docker run -p 8787:8787 gavel-web
-```
-
-The web frontend runs on `http://localhost:8787`.
-
-### Development Mode with Hot Reload
-
-```bash
-./scripts/docker-web.sh dev
-```
-
-Source code changes automatically reload in the container. See
-[scripts/docker-web.sh](scripts/docker-web.sh) for all commands.
-
-### User journeys
-
-- Marketplace: `http://localhost:3000/`
-- Bidder onboarding: `http://localhost:3000/onboarding`
-- Seller and product onboarding: `http://localhost:3000/sell/onboarding`
-
-Every user starts as a bidder. Selecting **My account** or attempting to bid
-opens bidder onboarding. Selecting **Sell an item** also requires bidder setup
-first, then returns the user to seller onboarding. The seller flow collects the
-seller profile, shipping origin, payout connection, product details, images,
-price, and auction schedule before creating a draft listing.
-
-Authentication, email verification, and persistence are simulated in the web
-prototype with browser session storage. Passwords are never persisted.
-
-The private hosted prototype is available at
+The earlier click-through prototype is hosted at
 [gavel-auction-marketplace.ruufimon.chatgpt.site](https://gavel-auction-marketplace.ruufimon.chatgpt.site).
 
 ## Validation
@@ -231,12 +184,12 @@ Run API tests:
 ./gradlew test
 ```
 
-Validate the frontend:
+Validate the web app:
 
 ```bash
 cd web
-npm run lint
-npm run build
+npm run typecheck && npm test && npm run build
+npm run e2e        # browser tests; needs the local stack and the app on :8787
 ```
 
 ## Agent Friendly Architecture Resources

@@ -88,6 +88,25 @@ class AccountTest {
         }
 
         @Test
+        fun `a display name edited in Gavel is kept while the provider keeps reporting the same name`() {
+            val account = Account.bootstrap(claims(verified = true, name = "Mina Provider"), t0).account
+            val edited = account.updateProfile(ProfilePatch(displayName = "Mina K."), t0.plusSeconds(10)).account
+            val change = edited.syncClaims(claims(verified = true, name = "Mina Provider"), t0.plusSeconds(60))
+            assertFalse(change.changed)
+            assertEquals("Mina K.", change.account.displayName)
+        }
+
+        @Test
+        fun `a name change at the provider replaces an edited display name and is remembered`() {
+            val account = Account.bootstrap(claims(verified = true, name = "Mina Provider"), t0).account
+            val edited = account.updateProfile(ProfilePatch(displayName = "Mina K."), t0.plusSeconds(10)).account
+            val renamed = edited.syncClaims(claims(verified = true, name = "Mina Kessler"), t0.plusSeconds(60)).account
+            assertEquals("Mina Kessler", renamed.displayName)
+            assertEquals("Mina Kessler", renamed.providerDisplayName)
+            assertFalse(renamed.syncClaims(claims(verified = true, name = "Mina Kessler"), t0.plusSeconds(90)).changed)
+        }
+
+        @Test
         fun `a changed display name and email are refreshed without a state change`() {
             val account = active()
             val change = account.syncClaims(claims(email = "new@example.com", verified = true, name = "Mina K."), t0.plusSeconds(60))

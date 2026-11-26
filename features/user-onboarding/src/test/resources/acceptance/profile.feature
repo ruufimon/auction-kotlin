@@ -30,6 +30,23 @@ Feature: Profile
     And the response reflects the new values and a new "version"
     And a "user-onboarding.profile-updated" event is written to the outbox
 
+  @USR-013
+  Scenario: A display name changed in Gavel survives later requests
+    Given "mina@example.com" is called "Mina Provider" at the identity provider
+    And "usr_mina" makes an authenticated request
+    When "usr_mina" updates their profile with display name "Mina K." and phone "+15035550142"
+    And "usr_mina" makes another authenticated request
+    Then their display name is "Mina K."
+
+  @USR-013
+  Scenario: A name change at the identity provider replaces the display name
+    Given "mina@example.com" is called "Mina Provider" at the identity provider
+    And "usr_mina" makes an authenticated request
+    And "usr_mina" updates their profile with display name "Mina K." and phone "+15035550142"
+    When "mina@example.com" is called "Mina Kessler" at the identity provider
+    And "usr_mina" makes another authenticated request
+    Then their display name is "Mina Kessler"
+
   Scenario: Updating the shipping address
     When "usr_mina" updates their shipping address to "418 NW Couch St", "Portland", "OR", "97209", "US"
     Then the response status is 200
