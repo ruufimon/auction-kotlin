@@ -17,6 +17,9 @@ services:
       deploy_on_push: true
     dockerfile_path: deploy/keycloak/Dockerfile
     http_port: 8080
+    # Keycloak's management interface (health checks), reachable only inside the app.
+    internal_ports:
+      - 9000
     instance_count: 1
     instance_size_slug: apps-s-1vcpu-1gb
     routes:
