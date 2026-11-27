@@ -12,6 +12,8 @@ import com.gavel.migration.FlywayConfig
 import com.gavel.observability.createMeterRegistry
 import com.gavel.observability.installMetrics
 import com.gavel.onboarding.UserOnboarding
+import com.gavel.onboarding.service.KeycloakIdentityProviderAdmin
+import com.gavel.onboarding.service.NotConfiguredIdentityProviderAdmin
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
@@ -46,7 +48,13 @@ fun main() {
         eventPublisher = OutboxEventPublisher(),
         auditLog = DatabaseAuditLog(),
         meterRegistry = registry,
+        identityProviderAdmin = config.onboarding.identityProviderAdmin
+            ?.let { KeycloakIdentityProviderAdmin(config.identity.issuer, it) }
+            ?: NotConfiguredIdentityProviderAdmin(),
     )
+    log.info("Identity provider admin client {}, email verification {}",
+        if (config.onboarding.identityProviderAdmin != null) "configured" else "not configured",
+        if (config.onboarding.requireEmailVerification) "required" else "not required")
 
     embeddedServer(Netty, host = "0.0.0.0", port = config.port, module = {
         module(

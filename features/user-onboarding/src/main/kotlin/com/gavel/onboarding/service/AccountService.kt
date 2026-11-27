@@ -52,6 +52,8 @@ class AccountService(
     private val sellerRequirements: () -> SellerRequirements,
     private val identityProvider: IdentityProviderAdmin,
     private val meterRegistry: MeterRegistry,
+    /** False where the provider sends no verification email; see [Account.bootstrap]. */
+    private val requireEmailVerification: Boolean = true,
 ) {
     private val log = LoggerFactory.getLogger(AccountService::class.java)
 
@@ -91,7 +93,7 @@ class AccountService(
             if (written) return attached
             return tx { repository.findBySubject(claims.subject) } ?: createOrLink(claims, correlationId)
         }
-        val change = Account.bootstrap(claims, clock.instant())
+        val change = Account.bootstrap(claims, clock.instant(), requireEmailVerification = requireEmailVerification)
         val inserted = try {
             tx {
                 repository.insert(change.account)
@@ -200,8 +202,10 @@ class AccountService(
         try {
             call()
         } catch (e: Exception) {
-            // The application state already rejects tokens; the outbox handler retries the provider call.
-            log.warn("Identity provider sync failed for account {}; will retry through the outbox", account.userId.value, e)
+            // The application state already rejects tokens. There is no automatic retry yet (outbox
+            // handlers arrive with M6): the operator fixes the provider account in the Keycloak console
+            // (deploy/keycloak/README.md), guided by this audit entry.
+            log.warn("Identity provider sync failed for account {}; fix the provider account in the Keycloak console", account.userId.value, e)
             tx { audit.record(Actor.System, "identity-provider.sync-failed", AGGREGATE, account.id, mapOf("error" to e.javaClass.simpleName), correlationId) }
         }
     }
