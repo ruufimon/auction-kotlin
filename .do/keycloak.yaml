@@ -1,0 +1,79 @@
+# DigitalOcean App Platform spec for Gavel's Keycloak (identity provider, issue #19 / AFA-8).
+#
+# Before the first create, the database and user must exist in the gavel-db cluster, owned by
+# that user (see deploy/keycloak/README.md, "Production").
+# Create:  doctl apps create --spec .do/keycloak.yaml --project-id <gavel-auction project id>
+# Update:  fetch the live spec (doctl apps spec get <app-id>), edit it, and apply that, so the
+#          secrets set at create time are kept. This file carries no secret values.
+#
+name: gavel-keycloak
+region: sgp
+
+services:
+  - name: keycloak
+    github:
+      repo: ruufimon/auction-kotlin
+      branch: main
+      deploy_on_push: true
+    dockerfile_path: deploy/keycloak/Dockerfile
+    http_port: 8080
+    instance_count: 1
+    instance_size_slug: apps-s-1vcpu-1gb
+    routes:
+      - path: /
+    health_check:
+      port: 9000
+      http_path: /health/ready
+      initial_delay_seconds: 30
+      period_seconds: 10
+      timeout_seconds: 5
+      failure_threshold: 6
+    liveness_health_check:
+      port: 9000
+      http_path: /health/live
+      initial_delay_seconds: 90
+      period_seconds: 15
+      timeout_seconds: 5
+      failure_threshold: 4
+    envs:
+      # Public URL of this app; Keycloak builds issuer and redirect URLs from it.
+      - key: KC_HOSTNAME
+        scope: RUN_TIME
+        value: ${APP_URL}
+      - key: KC_DB_URL
+        scope: RUN_TIME
+        value: jdbc:postgresql://${db.HOSTNAME}:${db.PORT}/${db.DATABASE}?sslmode=require
+      - key: KC_DB_USERNAME
+        scope: RUN_TIME
+        value: ${db.USERNAME}
+      - key: KC_DB_PASSWORD
+        scope: RUN_TIME
+        value: ${db.PASSWORD}
+      - key: JAVA_OPTS_KC_HEAP
+        scope: RUN_TIME
+        value: "-XX:MaxRAMPercentage=70"
+      # The web app's public origin: the gavel-web client's only redirect URI (realm import).
+      - key: GAVEL_WEB_ORIGIN
+        scope: RUN_TIME
+        value: https://gavel-web-u6uw9.ondigitalocean.app
+      # Secrets: values are set at create time and never committed.
+      # Admin console login for the master realm; used on first start to create the admin.
+      - key: KC_BOOTSTRAP_ADMIN_USERNAME
+        scope: RUN_TIME
+        type: SECRET
+      - key: KC_BOOTSTRAP_ADMIN_PASSWORD
+        scope: RUN_TIME
+        type: SECRET
+      # Secret of the gavel-admin client; the API holds the same value as KEYCLOAK_ADMIN_CLIENT_SECRET.
+      - key: GAVEL_ADMIN_CLIENT_SECRET
+        scope: RUN_TIME
+        type: SECRET
+
+databases:
+  - name: db
+    engine: PG
+    version: "16"
+    production: true
+    cluster_name: gavel-db
+    db_name: keycloak
+    db_user: keycloak
