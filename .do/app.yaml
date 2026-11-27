@@ -60,11 +60,19 @@ services:
       - key: DB_POOL_SIZE
         scope: RUN_TIME
         value: "10"
-      # Identity provider (Keycloak realm, issue #19). Until the realm is deployed this
-      # placeholder keeps the app bootable; every bearer token is rejected with 401.
+      # Identity provider: the gavel realm on the gavel-keycloak app (.do/keycloak.yaml).
       - key: OIDC_ISSUER
         scope: RUN_TIME
-        value: https://keycloak.not-yet-deployed.invalid/realms/gavel
+        value: https://gavel-keycloak-ru9us.ondigitalocean.app/realms/gavel
+      # Service account that disables users in Keycloak on suspension (USR-010).
+      - key: KEYCLOAK_ADMIN_CLIENT_ID
+        scope: RUN_TIME
+        value: gavel-admin
+      # Keycloak sends no email yet (no SMTP provider), so new accounts start at the
+      # credit-eligibility step. Remove once email verification is turned on in the realm.
+      - key: ONBOARDING_REQUIRE_EMAIL_VERIFICATION
+        scope: RUN_TIME
+        value: "false"
       # Secrets: set values in the DigitalOcean console or via `doctl apps update`
       # (App Platform encrypts them). Never commit real values.
       # ASSESSMENT_ENCRYPTION_KEY: base64 of 32 random bytes (`openssl rand -base64 32`).
@@ -73,6 +81,10 @@ services:
         type: SECRET
       # INTERNAL_API_TOKEN: shared secret for the operator endpoints under /internal.
       - key: INTERNAL_API_TOKEN
+        scope: RUN_TIME
+        type: SECRET
+      # KEYCLOAK_ADMIN_CLIENT_SECRET: the gavel-admin client's secret (Keycloak's GAVEL_ADMIN_CLIENT_SECRET).
+      - key: KEYCLOAK_ADMIN_CLIENT_SECRET
         scope: RUN_TIME
         type: SECRET
       # Metrics export to the self-hosted SigNoz (deploy/signoz/README.md).

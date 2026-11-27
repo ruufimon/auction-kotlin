@@ -1,0 +1,50 @@
+# DigitalOcean App Platform spec for the Gavel web app (Next.js, web/Dockerfile).
+#
+# Create:  doctl apps create --spec .do/web.yaml --project-id <gavel-auction project id>
+#          (add a value for SESSION_SECRET in a local copy first: openssl rand -hex 32)
+# Update:  fetch the live spec (doctl apps spec get <app-id>), edit it, and apply that, so the
+#          secret set at create time is kept. This file carries no secret values.
+#
+name: gavel-web
+region: sgp
+
+services:
+  - name: web
+    github:
+      repo: ruufimon/auction-kotlin
+      branch: main
+      deploy_on_push: true
+    dockerfile_path: web/Dockerfile
+    http_port: 8787
+    instance_count: 1
+    instance_size_slug: apps-s-1vcpu-0.5gb
+    routes:
+      - path: /
+    health_check:
+      http_path: /
+      initial_delay_seconds: 10
+      period_seconds: 10
+      timeout_seconds: 3
+      failure_threshold: 3
+    envs:
+      # Public origin of this app: redirect URI base; https turns on Secure cookies.
+      - key: APP_ORIGIN
+        scope: RUN_TIME
+        value: ${APP_URL}
+      # The Gavel API, called server to server by the same-origin /api/v1 proxy.
+      - key: API_ORIGIN
+        scope: RUN_TIME
+        value: https://gavel-8ztsx.ondigitalocean.app
+      - key: OIDC_ISSUER
+        scope: RUN_TIME
+        value: https://gavel-keycloak-ru9us.ondigitalocean.app/realms/gavel
+      - key: OIDC_INTERNAL_ISSUER
+        scope: RUN_TIME
+        value: https://gavel-keycloak-ru9us.ondigitalocean.app/realms/gavel
+      - key: OIDC_CLIENT_ID
+        scope: RUN_TIME
+        value: gavel-web
+      # Secret: at least 32 characters; derives the session-cookie key. Rotating it signs everyone out.
+      - key: SESSION_SECRET
+        scope: RUN_TIME
+        type: SECRET
