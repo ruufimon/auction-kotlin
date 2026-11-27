@@ -74,6 +74,40 @@ class AppConfigTest {
     }
 
     @Test
+    fun `email verification is required and the admin client absent unless configured`() {
+        val config = AppConfig.fromEnv(env())
+
+        assertTrue(config.onboarding.requireEmailVerification)
+        assertEquals(null, config.onboarding.identityProviderAdmin)
+    }
+
+    @Test
+    fun `verification can be turned off and the admin client configured`() {
+        val config = AppConfig.fromEnv(env(*productionEnv,
+            "ONBOARDING_REQUIRE_EMAIL_VERIFICATION" to "false",
+            "KEYCLOAK_ADMIN_CLIENT_ID" to "gavel-admin",
+            "KEYCLOAK_ADMIN_CLIENT_SECRET" to "admin-secret"))
+
+        assertFalse(config.onboarding.requireEmailVerification)
+        assertEquals("gavel-admin", config.onboarding.identityProviderAdmin?.clientId)
+        assertFalse(config.onboarding.identityProviderAdmin.toString().contains("admin-secret"))
+    }
+
+    @Test
+    fun `an admin client id without a secret is rejected`() {
+        val error = assertThrows<IllegalStateException> {
+            AppConfig.fromEnv(env("KEYCLOAK_ADMIN_CLIENT_ID" to "gavel-admin"))
+        }
+
+        assertContains(error.message!!, "KEYCLOAK_ADMIN_CLIENT_SECRET")
+    }
+
+    @Test
+    fun `a malformed verification flag is rejected`() {
+        assertThrows<IllegalStateException> { AppConfig.fromEnv(env("ONBOARDING_REQUIRE_EMAIL_VERIFICATION" to "nope")) }
+    }
+
+    @Test
     fun `non-numeric port is rejected`() {
         assertThrows<IllegalStateException> { AppConfig.fromEnv(env("PORT" to "eighty")) }
     }

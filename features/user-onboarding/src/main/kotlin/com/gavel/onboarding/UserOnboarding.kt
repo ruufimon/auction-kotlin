@@ -49,6 +49,7 @@ class UserOnboarding(
         sellerRequirements = sellerRequirements,
         identityProvider = identityProviderAdmin,
         meterRegistry = meterRegistry,
+        requireEmailVerification = settings.requireEmailVerification,
     )
 
     /** Register inside `installWebKernel { rateLimits(...) }` (requirement §8.2). */

@@ -57,6 +57,17 @@ class AccountTest {
         }
 
         @Test
+        fun `without required verification an unverified email enters PENDING_CREDIT_ELIGIBILITY and stays unverified`() {
+            val change = Account.bootstrap(claims(verified = false), t0, requireEmailVerification = false)
+
+            assertEquals(AccountState.PENDING_CREDIT_ELIGIBILITY, change.account.state)
+            assertFalse(change.account.emailVerified)
+            val event = assertIs<AccountCreatedV1>(change.events.single())
+            assertEquals("PENDING_CREDIT_ELIGIBILITY", event.accountState)
+            assertFalse(event.emailVerified)
+        }
+
+        @Test
         fun `the account copies email and display name from the token and is not a seller`() {
             val account = Account.bootstrap(claims(email = "  Mina@Example.COM ", name = "Mina"), t0).account
             assertEquals("mina@example.com", account.email.value)

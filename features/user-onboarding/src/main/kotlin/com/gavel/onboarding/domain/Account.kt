@@ -188,8 +188,19 @@ data class Account(
         private val PHONE = Regex("^\\+?[0-9 ().-]{6,20}$")
 
         /** First authenticated request: entry state follows the `email_verified` claim (USR-013). */
-        fun bootstrap(claims: IdentityClaims, now: Instant, id: UUID = UUID.randomUUID(), userId: UserId = UserId.generate()): AccountChange {
-            val state = if (claims.emailVerified) AccountState.PENDING_CREDIT_ELIGIBILITY else AccountState.PENDING_VERIFICATION
+        /**
+         * Creates the account for a first authenticated request (USR-013). With
+         * [requireEmailVerification] off (an environment without outgoing email) an unverified
+         * address skips PENDING_VERIFICATION; `emailVerified` still records what the token said.
+         */
+        fun bootstrap(
+            claims: IdentityClaims,
+            now: Instant,
+            id: UUID = UUID.randomUUID(),
+            userId: UserId = UserId.generate(),
+            requireEmailVerification: Boolean = true,
+        ): AccountChange {
+            val state = if (claims.emailVerified || !requireEmailVerification) AccountState.PENDING_CREDIT_ELIGIBILITY else AccountState.PENDING_VERIFICATION
             val account = Account(
                 id = id,
                 userId = userId,
